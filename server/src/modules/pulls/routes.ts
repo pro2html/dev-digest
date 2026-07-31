@@ -129,6 +129,21 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Total COST per PR — sum of every completed agent run's cost_usd. Same
+    // IN-query + JS grouping approach as the score above; runs with an unknown
+    // cost (null) are skipped rather than treated as $0.
+    const totalCostByPr = new Map<string, number>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds));
+      for (const run of runRows) {
+        if (run.prId == null || run.costUsd == null) continue;
+        totalCostByPr.set(run.prId, (totalCostByPr.get(run.prId) ?? 0) + run.costUsd);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +168,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost: totalCostByPr.get(r.id) ?? null,
       };
     });
   });
