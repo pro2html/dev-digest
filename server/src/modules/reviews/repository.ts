@@ -158,6 +158,10 @@ export class ReviewRepository {
       /** USD cost of this run (API-reported or price-book estimate); null when unknown. */
       costUsd: number | null;
       findingsCount: number;
+      /** Per-severity breakdown of findingsCount; 0 on failed/cancelled runs. */
+      findingsCritical?: number | null;
+      findingsWarning?: number | null;
+      findingsSuggestion?: number | null;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */
       score?: number | null;

@@ -1,18 +1,24 @@
 import type { CSSProperties } from "react";
-import { GRID } from "./constants";
+import { GRID, TABLE_RADIUS } from "./constants";
 
 /** Co-located styles for the PR list page (extracted from inline styles). */
 export const s = {
-  row: (hover: boolean): CSSProperties => ({
+  row: (hover: boolean, isLast: boolean): CSSProperties => ({
     display: "grid",
     gridTemplateColumns: GRID,
     alignItems: "center",
     gap: 14,
     padding: "12px 20px",
-    borderBottom: "1px solid var(--border)",
+    borderBottom: isLast ? "none" : "1px solid var(--border)",
     cursor: "pointer",
     background: hover ? "var(--bg-surface)" : "transparent",
     transition: "background .1s",
+    // Round the last row's own bottom corners now that `.tableCard` no longer
+    // clips via `overflow: hidden` (that also clipped FindingsIndicator's
+    // hover card) — otherwise its hover background would square off past the
+    // card's rounded corners.
+    borderBottomLeftRadius: isLast ? TABLE_RADIUS : 0,
+    borderBottomRightRadius: isLast ? TABLE_RADIUS : 0,
   }),
   rowTitleCell: {
     minWidth: 0,
@@ -40,6 +46,7 @@ export const s = {
   } satisfies CSSProperties,
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
   scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
+  findingsCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
   costCell: {
     fontSize: 12.5,
     color: "var(--text-secondary)",
@@ -58,6 +65,11 @@ export const s = {
     padding: "16px 20px",
     borderBottom: "1px solid var(--border)",
     flexWrap: "wrap",
+    // `.tableCard` no longer has `overflow: hidden` (it clipped
+    // FindingsIndicator's hover card) — this is the first child inside the
+    // rounded card, so round its own top corners to match by hand.
+    borderTopLeftRadius: TABLE_RADIUS,
+    borderTopRightRadius: TABLE_RADIUS,
   } satisfies CSSProperties,
   filterChips: { display: "flex", gap: 8 } satisfies CSSProperties,
   filterActions: {
@@ -91,8 +103,7 @@ export const s = {
   tableCard: {
     margin: "14px 32px 44px",
     border: "1px solid var(--border)",
-    borderRadius: 10,
-    overflow: "hidden",
+    borderRadius: TABLE_RADIUS,
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
   headRow: {

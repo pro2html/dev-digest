@@ -5,7 +5,7 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { RunSummary } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
@@ -27,6 +27,9 @@ function run(o: Partial<RunSummary>): RunSummary {
     tokens_out: 50,
     cost_usd: null,
     findings_count: 0,
+    findings_critical: null,
+    findings_warning: null,
+    findings_suggestion: null,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
     score: null,
@@ -72,5 +75,68 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — inline findings", () => {
+  it("shows per-severity counters inline, and their hover-card from the matching review", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <RunHistory
+          runs={[
+            run({
+              findings_count: 1,
+              findings_critical: 1,
+              findings_warning: 0,
+              findings_suggestion: 0,
+              blockers: 1,
+              score: 61,
+            }),
+          ]}
+          reviews={[
+            {
+              id: "rev-1",
+              pr_id: "pr-1",
+              agent_id: "a1",
+              run_id: "run-1",
+              agent_name: "Security Reviewer",
+              kind: "review",
+              verdict: "request_changes",
+              summary: "s",
+              score: 61,
+              model: "gpt-4.1",
+              grounding: null,
+              created_at: "2026-06-11T18:44:34.000Z",
+              findings: [
+                {
+                  id: "f1",
+                  review_id: "rev-1",
+                  severity: "CRITICAL",
+                  category: "security",
+                  title: "Hardcoded Stripe secret key",
+                  file: "src/config.ts",
+                  start_line: 12,
+                  end_line: 12,
+                  rationale: "r",
+                  suggestion: null,
+                  confidence: 0.98,
+                  kind: "secret_leak",
+                  trifecta_components: null,
+                  evidence: null,
+                  accepted_at: null,
+                  dismissed_at: null,
+                },
+              ],
+            },
+          ]}
+          onOpenTrace={() => {}}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText("1", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByText(/1 blockers/)).toBeInTheDocument();
+
+    fireEvent.mouseEnter(screen.getByTestId("findings-indicator"));
+    expect(screen.getByText("Hardcoded Stripe secret key")).toBeInTheDocument();
   });
 });

@@ -1,7 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  GitHubClient,
+  PrReviewComment,
+  PrFindingsSummary,
+  PrFindingPreview,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -132,15 +139,91 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // Total COST per PR — sum of every completed agent run's cost_usd. Same
     // IN-query + JS grouping approach as the score above; runs with an unknown
     // cost (null) are skipped rather than treated as $0.
+    //
+    // FINDINGS per PR (the list's Findings column) piggy-backs on the same
+    // query: per-severity counts are denormalized onto agent_runs at run
+    // completion (like findings_count/blockers), so summing them here needs
+    // no join — cumulative across every run, same semantics as `cost`.
     const totalCostByPr = new Map<string, number>();
+    const findingsByPr = new Map<string, PrFindingsSummary>();
     if (prIds.length > 0) {
       const runRows = await container.db
-        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .select({
+          prId: t.agentRuns.prId,
+          costUsd: t.agentRuns.costUsd,
+          findingsCritical: t.agentRuns.findingsCritical,
+          findingsWarning: t.agentRuns.findingsWarning,
+          findingsSuggestion: t.agentRuns.findingsSuggestion,
+        })
         .from(t.agentRuns)
         .where(inArray(t.agentRuns.prId, prIds));
       for (const run of runRows) {
-        if (run.prId == null || run.costUsd == null) continue;
-        totalCostByPr.set(run.prId, (totalCostByPr.get(run.prId) ?? 0) + run.costUsd);
+        if (run.prId == null) continue;
+        if (run.costUsd != null) {
+          totalCostByPr.set(run.prId, (totalCostByPr.get(run.prId) ?? 0) + run.costUsd);
+        }
+        if (
+          run.findingsCritical != null ||
+          run.findingsWarning != null ||
+          run.findingsSuggestion != null
+        ) {
+          const prev = findingsByPr.get(run.prId) ?? { critical: 0, warning: 0, suggestion: 0 };
+          findingsByPr.set(run.prId, {
+            critical: prev.critical + (run.findingsCritical ?? 0),
+            warning: prev.warning + (run.findingsWarning ?? 0),
+            suggestion: prev.suggestion + (run.findingsSuggestion ?? 0),
+          });
+        }
+      }
+    }
+
+    // Findings PREVIEW per PR — top findings (by severity, then confidence)
+    // for the list's findings hover-card. Needs actual finding rows (title,
+    // file:line, confidence), so unlike the counts above this does join
+    // findings → reviews; the list is small so one IN-query + JS grouping is
+    // still cheap (same pattern used throughout this route).
+    const FINDINGS_PREVIEW_LIMIT = 8;
+    const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
+    const findingsPreviewByPr = new Map<string, PrFindingPreview[]>();
+    if (prIds.length > 0) {
+      const findingRows = await container.db
+        .select({
+          prId: t.reviews.prId,
+          title: t.findings.title,
+          severity: t.findings.severity,
+          category: t.findings.category,
+          file: t.findings.file,
+          startLine: t.findings.startLine,
+          confidence: t.findings.confidence,
+        })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.reviews.id, t.findings.reviewId))
+        .where(inArray(t.reviews.prId, prIds));
+      const byPr = new Map<string, typeof findingRows>();
+      for (const f of findingRows) {
+        const list = byPr.get(f.prId) ?? [];
+        list.push(f);
+        byPr.set(f.prId, list);
+      }
+      for (const [prId, list] of byPr) {
+        const sorted = list
+          .slice()
+          .sort((a, b) => {
+            const rankDiff = (SEVERITY_RANK[a.severity] ?? 99) - (SEVERITY_RANK[b.severity] ?? 99);
+            return rankDiff !== 0 ? rankDiff : b.confidence - a.confidence;
+          })
+          .slice(0, FINDINGS_PREVIEW_LIMIT);
+        findingsPreviewByPr.set(
+          prId,
+          sorted.map((f) => ({
+            title: f.title,
+            severity: f.severity as PrFindingPreview['severity'],
+            category: f.category as PrFindingPreview['category'],
+            file: f.file,
+            start_line: f.startLine,
+            confidence: f.confidence,
+          })),
+        );
       }
     }
 
@@ -169,6 +252,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost: totalCostByPr.get(r.id) ?? null,
+        findings: findingsByPr.get(r.id) ?? null,
+        findings_preview: findingsPreviewByPr.get(r.id) ?? null,
       };
     });
   });

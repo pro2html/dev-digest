@@ -214,6 +214,9 @@ export class ReviewRunExecutor {
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
+      const findingsCritical = keptFindings.filter((f) => f.severity === 'CRITICAL').length;
+      const findingsWarning = keptFindings.filter((f) => f.severity === 'WARNING').length;
+      const findingsSuggestion = keptFindings.filter((f) => f.severity === 'SUGGESTION').length;
 
       // ---- Persist review + findings ----------------------------------------
       const review = await this.repo.insertReview({
@@ -248,6 +251,9 @@ export class ReviewRunExecutor {
         tokensOut,
         costUsd,
         findingsCount: findingRows.length,
+        findingsCritical,
+        findingsWarning,
+        findingsSuggestion,
         grounding,
         score: outcome.review.score,
         blockers,

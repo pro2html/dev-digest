@@ -15,6 +15,7 @@ import {
   Settings,
   Repo,
   PrDetail,
+  PrMeta,
 } from '@devdigest/shared';
 
 /**
@@ -206,5 +207,49 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+
+  it('PrMeta findings column (counts + hover-card preview)', () => {
+    const pr = PrMeta.parse({
+      number: 482,
+      title: 'Add rate limiting',
+      author: 'marisa.koch',
+      branch: 'feat/rl',
+      base: 'main',
+      head_sha: 'sha',
+      additions: 285,
+      deletions: 38,
+      files_count: 9,
+      status: 'needs_review',
+      score: 61,
+      findings: { critical: 2, warning: 2, suggestion: 2 },
+      findings_preview: [
+        {
+          title: 'Hardcoded Stripe secret key in commit',
+          severity: 'CRITICAL',
+          category: 'security',
+          file: 'src/config.ts',
+          start_line: 12,
+          confidence: 0.98,
+        },
+      ],
+    });
+    expect(pr.findings).toEqual({ critical: 2, warning: 2, suggestion: 2 });
+    expect(pr.findings_preview).toHaveLength(1);
+
+    // Never-reviewed PR: findings columns absent/null, not zeroed.
+    const unreviewed = PrMeta.parse({
+      number: 1,
+      title: 't',
+      author: 'a',
+      branch: 'b',
+      base: 'main',
+      head_sha: 'sha',
+      additions: 0,
+      deletions: 0,
+      files_count: 0,
+      status: 'needs_review',
+    });
+    expect(unreviewed.findings).toBeUndefined();
   });
 });

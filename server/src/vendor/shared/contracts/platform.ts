@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Severity, FindingCategory } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -154,6 +155,28 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+// Per-severity finding counts across every completed review of a PR
+// (cumulative, like `cost` — not just the latest review). null/absent when
+// the PR has never been reviewed.
+export const PrFindingsSummary = z.object({
+  critical: z.number().int(),
+  warning: z.number().int(),
+  suggestion: z.number().int(),
+});
+export type PrFindingsSummary = z.infer<typeof PrFindingsSummary>;
+
+// One finding surfaced in the list's findings hover-card — title/location
+// only; full rationale/suggestion stay on the PR detail page.
+export const PrFindingPreview = z.object({
+  title: z.string(),
+  severity: Severity,
+  category: FindingCategory,
+  file: z.string(),
+  start_line: z.number().int(),
+  confidence: z.number(),
+});
+export type PrFindingPreview = z.infer<typeof PrFindingPreview>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -173,6 +196,10 @@ export const PrMeta = z.object({
   // Total USD cost across this PR's completed agent runs (list endpoint only,
   // like `score`); null/absent when no run has a known cost yet.
   cost: z.number().nullish(),
+  // Findings column (list endpoint only): per-severity counts + a capped
+  // preview (top findings by severity/confidence) for the hover card.
+  findings: PrFindingsSummary.nullish(),
+  findings_preview: z.array(PrFindingPreview).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

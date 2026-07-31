@@ -25,6 +25,10 @@ export const agentRuns = pgTable('agent_runs', {
   error: text('error'),
   source: text('source', { enum: ['local', 'ci'] }).notNull().default('local'),
   findingsCount: integer('findings_count'),
+  /** Per-severity breakdown of findingsCount, computed once at completion. */
+  findingsCritical: integer('findings_critical'),
+  findingsWarning: integer('findings_warning'),
+  findingsSuggestion: integer('findings_suggestion'),
   grounding: text('grounding'),
   /** Review score (0-100) for this run; null on failed/cancelled runs. */
   score: integer('score'),

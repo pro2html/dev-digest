@@ -159,7 +159,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -208,6 +208,24 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // Per-severity breakdown (Findings column): the kept finding is CRITICAL.
+    expect(run!.findingsCritical).toBe(1);
+    expect(run!.findingsWarning).toBe(0);
+    expect(run!.findingsSuggestion).toBe(0);
+
+    // The PR list's Findings column aggregates + previews the same finding.
+    const pulls = (
+      await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })
+    ).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.findings).toEqual({ critical: 1, warning: 0, suggestion: 0 });
+    expect(listedPr.findings_preview).toHaveLength(1);
+    expect(listedPr.findings_preview[0]).toMatchObject({
+      title: 'Hardcoded Stripe secret key',
+      severity: 'CRITICAL',
+      file: 'src/config.ts',
+      start_line: 11,
+    });
 
     await app.close();
   });
