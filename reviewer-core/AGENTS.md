@@ -1,4 +1,4 @@
-# reviewer-core/ — CLAUDE.md
+# reviewer-core/ — AGENTS.md
 
 `@devdigest/reviewer-core`: pure review logic — diff → prompt → LLM →
 grounded findings. **No** database, GitHub, or filesystem access; the only

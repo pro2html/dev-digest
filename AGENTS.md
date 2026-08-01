@@ -19,13 +19,13 @@ host via `pnpm dev` inside each package.
 - No root install/build — `cd` into a package and run its own scripts.
 - Cross-package imports go through tsconfig path aliases (e.g.
   `@devdigest/reviewer-core`, `@devdigest/shared`), not npm packages.
-- Secrets never live in git or the DB — see `server/CLAUDE.md`.
+- Secrets never live in git or the DB — see `server/AGENTS.md`.
 
 ## Read when
 
 - Full architecture diagram, review flow end to end → [`README.md`](README.md)
 - Working on a specific package's conventions/gotchas → its own
-  `<package>/CLAUDE.md`
+  `<package>/AGENTS.md`
 - Writing/using LLM reviewer agent prompts → [`docs/agent-prompts/`](docs/agent-prompts/README.md)
 - Local test setup across packages → [`TESTING.md`](TESTING.md)
 

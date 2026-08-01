@@ -1,4 +1,4 @@
-# server/ — CLAUDE.md
+# server/ — AGENTS.md
 
 `@devdigest/api`: Fastify 5 + Drizzle ORM over Postgres (pgvector). Adapters
 (LLM, GitHub, git, ast-grep, tokenizer, secrets) sit behind a DI container

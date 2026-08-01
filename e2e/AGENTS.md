@@ -1,4 +1,4 @@
-# e2e/ — CLAUDE.md
+# e2e/ — AGENTS.md
 
 `@devdigest/e2e`: deterministic UI flows for the web app, driven by Vercel
 **agent-browser** (native Rust + CDP CLI). No Playwright, no LLM, no API key.

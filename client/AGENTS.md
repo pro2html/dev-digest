@@ -1,4 +1,4 @@
-# client/ — CLAUDE.md
+# client/ — AGENTS.md
 
 `@devdigest/web`: Next.js 15 App Router UI — import repos, browse PRs, run/read
 AI reviews, author agents. Data via TanStack Query hooks over the Fastify API.
@@ -26,7 +26,7 @@ AI reviews, author agents. Data via TanStack Query hooks over the Fastify API.
 
 - Fetch is mocked in tests (jsdom), not hitting a real API — a passing test
   doesn't guarantee the live API contract still matches; check
-  `../server/CLAUDE.md` when touching a route both sides depend on.
+  `../server/AGENTS.md` when touching a route both sides depend on.
 
 ## Read when
 
