@@ -1,79 +1,46 @@
 # Zod Best Practices Skill
 
-A comprehensive guide for using Zod effectively in TypeScript applications. This skill provides 42 rules across 8 categories, organized by impact to help AI agents and developers write better validation code.
+43 rules for using Zod effectively in TypeScript: schema definition, parsing and validation, type inference, error handling, object schemas, composition, refinements and transforms, and performance.
 
-## Overview
+Scoped to Zod itself. Form-library integration and OpenAPI client generation are out of scope; TypeScript type-level techniques belong to `typescript-expert`, and Fastify request/response wiring to `fastify-best-practices`.
 
-Zod is a TypeScript-first schema declaration and validation library. This skill covers best practices for:
-
-- **Schema Definition**: Choosing correct types, avoiding `z.any()`, proper string validations
-- **Parsing & Validation**: Using `safeParse()`, async validation, error handling
-- **Type Inference**: Leveraging `z.infer`, distinguishing input/output types
-- **Error Handling**: Custom messages, internationalization, form error display
-- **Object Schemas**: strict/strip modes, partial updates, discriminated unions
-- **Schema Composition**: Reusable schemas, intersections, recursive types
-- **Refinements & Transforms**: Custom validation, data transformation
-- **Performance**: Caching, Zod Mini, lazy loading, batch validation
-
-## Usage
-
-### For Claude Code / AI Agents
-
-The skill is automatically loaded when working with Zod code. Reference specific rules:
-
-```
-See rules/parse-use-safeparse.md for safeParse best practices
-```
-
-### For Developers
-
-Read `SKILL.md` for a quick reference, or `AGENTS.md` for the full compiled guide.
-
-## File Structure
+## Layout
 
 ```
 zod/
-├── SKILL.md          # Quick reference with rule index
-├── AGENTS.md         # Full compiled guide (all rules)
-├── metadata.json     # Version, categories, references
-├── README.md         # This file
-└── rules/
-    ├── _sections.md  # Category definitions
-    ├── _template.md  # Rule template
-    ├── schema-*.md   # Schema definition rules
-    ├── parse-*.md    # Parsing rules
-    ├── type-*.md     # Type inference rules
-    ├── error-*.md    # Error handling rules
-    ├── object-*.md   # Object schema rules
-    ├── compose-*.md  # Composition rules
-    ├── refine-*.md   # Refinement rules
-    └── perf-*.md     # Performance rules
+├── SKILL.md                 # Entry point: rule index + routing to sibling skills
+├── README.md                # This file: scope, maintenance, sources
+├── assets/templates/
+│   └── _template.md         # Template for adding a rule
+└── references/              # One file per rule, {category-prefix}-{slug}.md
 ```
 
-## Rule Categories
+| Category | Prefix | Rules | Impact |
+|----------|--------|-------|--------|
+| Schema definition | `schema-` | 6 | CRITICAL |
+| Parsing & validation | `parse-` | 6 | CRITICAL |
+| Type inference | `type-` | 5 | HIGH |
+| Error handling | `error-` | 5 | HIGH |
+| Object schemas | `object-` | 6 | MEDIUM-HIGH |
+| Schema composition | `compose-` | 5 | MEDIUM |
+| Refinements & transforms | `refine-` | 5 | MEDIUM |
+| Performance & bundle | `perf-` | 5 | LOW-MEDIUM |
 
-| Priority | Category | Rules | Impact |
-|----------|----------|-------|--------|
-| 1 | Schema Definition | 6 | CRITICAL |
-| 2 | Parsing & Validation | 6 | CRITICAL |
-| 3 | Type Inference | 5 | HIGH |
-| 4 | Error Handling | 5 | HIGH |
-| 5 | Object Schemas | 6 | MEDIUM-HIGH |
-| 6 | Schema Composition | 5 | MEDIUM |
-| 7 | Refinements & Transforms | 5 | MEDIUM |
-| 8 | Performance & Bundle | 5 | LOW-MEDIUM |
+## Maintenance
 
-## Key Principles
+Add a rule by copying [`assets/templates/_template.md`](assets/templates/_template.md) into `references/` using the category prefix its siblings already use, then linking it from the matching section of [`SKILL.md`](SKILL.md). Keep each rule focused: rationale, one incorrect example, one correct example, and the cases where it does not apply.
 
-1. **Type Safety First**: Always use `z.infer`, never duplicate types manually
-2. **Validate at Boundaries**: Parse external data immediately at entry points
-3. **User-Friendly Errors**: Provide custom messages, collect all issues
-4. **Single Source of Truth**: Schema defines validation AND TypeScript types
-5. **Composition Over Duplication**: Use extend, pick, omit, partial
+Two constraints worth preserving:
 
-## References
+- **No `AGENTS.md` in this folder.** That filename is reserved for always-applied agent instructions, so a copy here is loaded into every request instead of on demand, which defeats the point of a skill. This skill previously shipped one and paid roughly 2,800 tokens per request for a table of contents.
+- **Never instruct the agent to fetch the source URLs below.** They are provenance for humans; treating them as live input would pull externally mutable content into the context.
 
-- [Zod Official Documentation](https://zod.dev/)
-- [Zod v4 Release Notes](https://zod.dev/v4)
-- [Zod GitHub](https://github.com/colinhacks/zod)
+## Sources
+
+- [Zod documentation](https://zod.dev/)
+- [Zod v4](https://zod.dev/v4)
+- [Zod — API reference](https://zod.dev/api)
+- [Zod — Error handling](https://zod.dev/error-handling)
 - [Zod Mini](https://zod.dev/packages/mini)
+- [Zod repository](https://github.com/colinhacks/zod)
+- [Total TypeScript — Zod tutorial](https://www.totaltypescript.com/tutorials/zod)
