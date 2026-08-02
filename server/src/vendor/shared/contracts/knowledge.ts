@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FindingCategory } from './findings.js';
 
 /**
  * Conformance, Onboarding, Eval, Memory, Conventions, Skills,
@@ -131,6 +132,25 @@ export const Skill = z.object({
 });
 export type Skill = z.infer<typeof Skill>;
 
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+export const SkillStats = z.object({
+  used_by_agents: z.number().int(),
+  findings_30d: z.number().int(),
+  findings_by_category: z.record(FindingCategory, z.number()),
+  pull_frequency: z.number().nullable(),
+  accept_rate: z.number().nullable(),
+  /** Agents that currently link this skill (for the Stats tab list). */
+  agents: z.array(z.object({ id: z.string(), name: z.string() })),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
 export const CommunitySkill = z.object({
   name: z.string(),
   repo: z.string(),
@@ -195,8 +215,17 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+/** Agent skill link enriched with skill fields for the agent's Skills tab (no N+1). */
+export const AgentSkillLinkView = AgentSkillLink.extend({
+  name: z.string(),
+  type: SkillType,
+  skill_enabled: z.boolean(),
+});
+export type AgentSkillLinkView = z.infer<typeof AgentSkillLinkView>;
 
 // The immutable config snapshot captured in `agent_versions` whenever an agent's
 // config changes (everything but `enabled`). Mirrors the shape written by the

@@ -3,7 +3,13 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Agent, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
+import type {
+  Agent,
+  AgentSkillLinkView,
+  ModelInfo,
+  Provider,
+  ReviewStrategy,
+} from "@devdigest/shared";
 
 export function useAgents() {
   return useQuery({
@@ -87,5 +93,79 @@ export function useProviderModels(provider: Provider | null | undefined) {
     queryFn: () => api.get<ModelInfo[]>(`/providers/${provider}/models`),
     enabled: !!provider,
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Linked skills for an agent (ordered AgentSkillLinkView[]). */
+export function useAgentSkills(agentId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["agent-skills", agentId],
+    queryFn: () => api.get<AgentSkillLinkView[]>(`/agents/${agentId}/skills`),
+    enabled: !!agentId,
+  });
+}
+
+export interface AgentSkillLinkInput {
+  skill_id: string;
+  order: number;
+  enabled: boolean;
+}
+
+/** Replace / reorder the full set of linked skills. */
+export function useSetAgentSkills() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skills }: { agentId: string; skills: AgentSkillLinkInput[] }) =>
+      api.post<AgentSkillLinkView[]>(`/agents/${agentId}/skills`, { skills }),
+    onSuccess: (data, { agentId }) => {
+      qc.setQueryData(["agent-skills", agentId], data);
+      qc.invalidateQueries({ queryKey: ["skill-stats"] });
+    },
+  });
+}
+
+/** Toggle enabled on one agent↔skill link. */
+export function useToggleAgentSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      agentId,
+      skillId,
+      enabled,
+    }: {
+      agentId: string;
+      skillId: string;
+      enabled: boolean;
+    }) => api.patch<AgentSkillLinkView[]>(`/agents/${agentId}/skills/${skillId}`, { enabled }),
+    onSuccess: (data, { agentId }) => {
+      qc.setQueryData(["agent-skills", agentId], data);
+      qc.invalidateQueries({ queryKey: ["skill-stats"] });
+    },
+  });
+}
+
+/** Unlink a skill from an agent. */
+export function useUnlinkAgentSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skillId }: { agentId: string; skillId: string }) =>
+      api.del<AgentSkillLinkView[]>(`/agents/${agentId}/skills/${skillId}`),
+    onSuccess: (data, { agentId }) => {
+      qc.setQueryData(["agent-skills", agentId], data);
+      qc.invalidateQueries({ queryKey: ["skill-stats"] });
+    },
+  });
+}
+
+/** Append one skill to the agent's linked set. */
+export function useLinkAgentSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skillId }: { agentId: string; skillId: string }) =>
+      api.post<AgentSkillLinkView[]>(`/agents/${agentId}/skills`, { skill_id: skillId }),
+    onSuccess: (data, { agentId }) => {
+      qc.setQueryData(["agent-skills", agentId], data);
+      qc.invalidateQueries({ queryKey: ["skill-stats"] });
+    },
   });
 }

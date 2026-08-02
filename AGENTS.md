@@ -27,6 +27,7 @@ host via `pnpm dev` inside each package.
 - Working on a specific package's conventions/gotchas → its own
   `<package>/AGENTS.md`
 - Writing/using LLM reviewer agent prompts → [`docs/agent-prompts/`](docs/agent-prompts/README.md)
+- Implementing the Skills feature (review-agent skills) → [`docs/specs/skills-feature.md`](docs/specs/skills-feature.md)
 - Local test setup across packages → [`TESTING.md`](TESTING.md)
 
 ## Engineering insights

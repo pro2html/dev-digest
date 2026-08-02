@@ -6,6 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  TEST_COVERAGE_NUDGE_BODY,
+  TEST_CORNER_CASES_BODY,
+  PR_QUALITY_RUBRIC_BODY,
 } from './seed-prompts.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -18,11 +22,12 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, the four built-in agents (General + Security +
+ * Performance + Test Quality), and three seed skills linked to Test Quality
+ * Reviewer — all on the default openrouter/deepseek-v4-flash provider+model.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * The fourth demo skill (`api-contract-breaking-change`) is imported via the UI
+ * from `docs/sample-skills/` (not seeded).
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -211,6 +216,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Reviews test quality: uncovered branches, missing corner cases, over-mocking, and flake risks.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +235,87 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- seed skills (manual) linked to Test Quality Reviewer ----
+  const [testQuality] = await db
+    .select()
+    .from(t.agents)
+    .where(
+      and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')),
+    );
+
+  const seedSkills: Array<{
+    name: string;
+    description: string;
+    type: 'custom' | 'rubric' | 'convention' | 'security';
+    body: string;
+  }> = [
+    {
+      name: 'test-coverage-nudge',
+      description:
+        'Nudge the reviewer to require branch coverage for every control-flow change in the PR.',
+      type: 'custom',
+      body: TEST_COVERAGE_NUDGE_BODY,
+    },
+    {
+      name: 'test-corner-cases',
+      description:
+        'Rubric for empty/nullish/boundary/error-path coverage in PR tests.',
+      type: 'rubric',
+      body: TEST_CORNER_CASES_BODY,
+    },
+    {
+      name: 'pr-quality-rubric',
+      description:
+        'Lightweight pass/fail rubric for overall PR test quality and finding discipline.',
+      type: 'rubric',
+      body: PR_QUALITY_RUBRIC_BODY,
+    },
+  ];
+
+  const skillIds: string[] = [];
+  for (const sk of seedSkills) {
+    let [row] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (!row) {
+      [row] = await db
+        .insert(t.skills)
+        .values({
+          workspaceId,
+          name: sk.name,
+          description: sk.description,
+          type: sk.type,
+          source: 'manual',
+          body: sk.body,
+          enabled: true,
+          version: 1,
+        })
+        .returning();
+    }
+    // Mirror SkillsRepository.insert: ensure a v1 body snapshot exists (also
+    // backfills skills that were seeded before this snapshot was added).
+    await db
+      .insert(t.skillVersions)
+      .values({ skillId: row!.id, version: 1, body: row!.body })
+      .onConflictDoNothing();
+    skillIds.push(row!.id);
+  }
+
+  if (testQuality) {
+    for (let order = 0; order < skillIds.length; order++) {
+      await db
+        .insert(t.agentSkills)
+        .values({
+          agentId: testQuality.id,
+          skillId: skillIds[order]!,
+          order,
+          enabled: true,
+        })
+        .onConflictDoNothing();
+    }
   }
 
   return { workspaceId, userId };
