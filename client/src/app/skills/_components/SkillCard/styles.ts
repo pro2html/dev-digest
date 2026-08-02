@@ -6,7 +6,7 @@ export const s = {
     padding: 14,
     borderRadius: 8,
     cursor: "pointer",
-    border: "1px solid " + (active ? "var(--border-strong)" : "var(--border)"),
+    border: "1px solid " + (active ? "var(--accent)" : "var(--border)"),
     background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
     opacity: enabled ? 1 : 0.6,
     marginBottom: 10,

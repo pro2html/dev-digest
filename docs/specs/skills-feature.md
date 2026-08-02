@@ -1,416 +1,502 @@
-# Спецификация: Skills для рев'ю-агентів
+# Spec: Skills for review agents
 
-Статус: draft · Пакеты: `server/`, `client/`, `reviewer-core/` (только чтение) ·
-Один документ на всю фичу.
+Status: draft · Flag `skills-agent-tab-dnd-reorder`: done ·
+Packages: `server/`, `client/`, `reviewer-core/` (read-only) ·
+One document for the whole feature.
 
-## 1. Зачем
+## 1. Why
 
-Скил — переиспользуемый блок инструкций в markdown, который подмешивается в
-промпт рев'ю-агента. В отличие от `agents.system_prompt`, один скил можно
-привязать к нескольким агентам, включать/выключать и версионировать отдельно.
+A skill is a reusable markdown instruction block mixed into a review agent's
+prompt. Unlike `agents.system_prompt`, one skill can be linked to multiple
+agents, toggled on/off, and versioned separately.
 
-Скил не выполняет код и не имеет доступа к инструментам: это только текст
-конфигурации.
+A skill does not execute code and has no tool access: it is configuration text
+only.
 
-## 2. Что уже есть в репозитории
+## 2. What already exists in the repo
 
-Фича «дошивается» — фундамент заложен:
+The feature is being "stitched on" — the foundation is already there:
 
-| Слой | Что есть | Где |
+| Layer | What exists | Where |
 |---|---|---|
-| БД | `skills`, `skill_versions`, `agent_skills(order)` | `server/src/db/schema/skills.ts`, `agents.ts` |
-| Контракты | `Skill`, `SkillType`, `SkillSource`, `AgentSkillLink` | `server/src/vendor/shared/contracts/knowledge.ts:114-199` |
-| API | `GET/POST /agents/:id/skills` | `server/src/modules/agents/routes.ts:145-165` |
-| Промпт | слот `skills` → секция `## Skills / rules` | `reviewer-core/src/prompt.ts:88,109` |
-| Трасса | `prompt_assembly.skills` в контракте и в UI | `contracts/trace.ts:39-52`, `TraceBody.tsx:74-92` |
-| i18n | тексты страницы Skills и импорта | `client/messages/en/skills.json` |
+| DB | `skills`, `skill_versions`, `agent_skills(order)` | `server/src/db/schema/skills.ts`, `agents.ts` |
+| Contracts | `Skill`, `SkillType`, `SkillSource`, `AgentSkillLink` | `server/src/vendor/shared/contracts/knowledge.ts:114-199` |
+| API | `GET/POST /agents/:id/skills`, Skills CRUD `/skills` | `server/src/modules/agents/routes.ts`, `modules/skills/` |
+| Prompt | `skills` slot → `## Skills / rules` section | `reviewer-core/src/prompt.ts:88,109` |
+| Trace | `prompt_assembly.skills` in contract and UI | `contracts/trace.ts:39-52`, `TraceBody.tsx:74-92` |
+| Injection | `run-executor` loads bodies via `skillsRepo.bodiesForAgent`, passes them into `reviewPullRequest`, logs `skills.loaded` | `server/src/modules/reviews/run-executor.ts` |
+| i18n | Skills page and import copy | `client/messages/en/skills.json` |
 
-Ключевой разрыв: `run-executor.ts:191-213` не передаёт `skills` в
-`reviewPullRequest`, поэтому в трассе всегда `skills: null` и привязка скилов
-сегодня ни на что не влияет.
+Prompt injection is wired: enabled linked skills appear in `prompt_assembly.skills`
+and in the live log as `skills.loaded`; disabled / empty sets leave both absent.
 
-## 3. Решения
+## 3. Decisions
 
-| Вопрос | Решение |
+| Question | Decision |
 |---|---|
-| Раскладка | Полностью повторяет агентов: `/skills` — грид карточек, `/skills/:id` — сплит-пейн с колонкой списка слева и табами справа |
-| Вкладки редактора | Config, Preview, Stats, Versions. Evals — вне объёма |
-| Импорт | Только markdown-файл. Ни архивов, ни URL, ни community |
-| `source` для импорта | Переиспользуем `imported_url` (бейдж «Imported»), без миграции enum |
-| Доверие | Импортированный скил создаётся с `enabled=false`, бейдж «needs vetting»; после включения идёт в промпт как обычные инструкции, без `wrapUntrusted` |
-| Вкл/выкл у агента | Новая колонка `agent_skills.enabled` |
-| Токены | Оценка на клиенте `ceil(chars/4)`, контракты не трогаем |
-| Новые сущности | 1 агент (Test Quality Reviewer) + 4 скила |
-| Редактор тела | `Textarea mono` + собственный гуттер с номерами строк, без новых зависимостей |
-| Stats | `Used by` и `Findings (30D)` — из БД; `Pull frequency` и `Accept rate` — не отслеживаются |
+| Layout | Skills Lab is **always split** (mockup): left skill list + right editor. `/skills` redirects to the first skill (`?tab=preview`) or shows empty state. No separate card-grid landing |
+| Editor tabs | Config, Preview, Stats, Versions. Evals — out of scope |
+| Import | Markdown file only. No archives, URLs, or community catalog |
+| `source` for import | Reuse `imported_url` ("Imported" badge), no enum migration |
+| Trust | Imported skill is created with `enabled=false`, "needs vetting" badge; once enabled it enters the prompt as normal instructions, no `wrapUntrusted` |
+| Per-agent toggle | New column `agent_skills.enabled` |
+| Tokens | Client-side estimate `ceil(chars/4)`, contracts untouched |
+| New entities | 1 agent (Test Quality Reviewer) + 4 skills |
+| Body editor | `Textarea mono` + custom line-number gutter, no new dependencies |
+| Stats | `Used by` and `Findings (30D)` — from DB; `Pull frequency` and `Accept rate` — not tracked |
+| Skill order on an agent | Drag-and-drop in `SkillsTab`; same API (`POST /agents/:id/skills` with full `{ skill_id, order, enabled }` array). No up/down arrows. No new DnD library — HTML5 Drag and Drop API |
+| Agent Skills tab chrome | Match the Skills-tab mockup: grip handle, checkbox enable, type-colored badges, dimmed disabled rows, client filter. Keep Add skill + unlink (mockup omits them; product model still needs link/unlink) |
 
-## 4. Модель данных
+## 4. Data model
 
-### 4.1 Миграция
+### 4.1 Migration
 
-Одна миграция (`pnpm db:generate` в `server/`):
+One migration (`pnpm db:generate` in `server/`):
 
     ALTER TABLE agent_skills ADD COLUMN enabled boolean NOT NULL DEFAULT true;
 
-Больше изменений схемы нет: `skills`, `skill_versions` уже готовы.
+No further schema changes: `skills` and `skill_versions` already exist.
 
-### 4.2 Семантика полей
+### 4.2 Field semantics
 
-- `skills.enabled` — глобальный выключатель. Выключенный скил не попадает ни в
-  один промпт, независимо от привязок.
-- `agent_skills.enabled` — выключатель для конкретного агента.
-- `agent_skills.order` — порядок блоков в промпте, начиная с 0.
-- Скил идёт в промпт только если `skills.enabled AND agent_skills.enabled`.
-- `skills.version` растёт **только при изменении `body`**; правка `name`,
-  `description`, `type`, `enabled` версию не бумпает (в `skill_versions`
-  хранится лишь `body`).
-- Снапшот в `skill_versions` пишется в той же транзакции, что и `UPDATE`,
-  с `onConflictDoNothing()` — как в `agents/repository.ts:148-166`.
-- Удаление скила каскадом убирает строки `agent_skills`; агенты остаются.
+- `skills.enabled` — global switch. A disabled skill never enters any prompt,
+  regardless of links.
+- `agent_skills.enabled` — per-agent switch.
+- `agent_skills.order` — order of blocks in the prompt, starting at 0.
+- A skill enters the prompt only if `skills.enabled AND agent_skills.enabled`.
+- `skills.version` increments **only when `body` changes**; edits to `name`,
+  `description`, `type`, `enabled` do not bump the version (`skill_versions`
+  stores only `body`).
+- The `skill_versions` snapshot is written in the same transaction as the
+  `UPDATE`, with `onConflictDoNothing()` — same pattern as
+  `agents/repository.ts:148-166`.
+- Deleting a skill cascades away `agent_skills` rows; agents remain.
 
-### 4.3 Контракты
+### 4.3 Contracts
 
-Правим **обе** копии (`server/src/vendor/shared/`, `client/src/vendor/shared/`)
-идентично — скрипта синхронизации нет.
+Edit **both** copies (`server/src/vendor/shared/`, `client/src/vendor/shared/`)
+identically — there is no sync script.
 
-В `contracts/knowledge.ts`:
+In `contracts/knowledge.ts`:
 
-- `AgentSkillLink` — добавить `enabled: z.boolean()`.
-- Новый `AgentSkillLinkView` = `AgentSkillLink` + `name`, `type`,
-  `skill_enabled` — чтобы вкладка Skills у агента рендерилась без N+1.
-- Новый `SkillVersion` = `{ skill_id, version, body, created_at }`.
-- Новый `SkillStats`:
+- `AgentSkillLink` — add `enabled: z.boolean()`.
+- New `AgentSkillLinkView` = `AgentSkillLink` + `name`, `type`,
+  `skill_enabled` — so the agent's Skills tab renders without N+1.
+- New `SkillVersion` = `{ skill_id, version, body, created_at }`.
+- New `SkillStats`:
   `{ used_by_agents: number, findings_30d: number,
      findings_by_category: Record<FindingCategory, number>,
      pull_frequency: number | null, accept_rate: number | null }`.
 
-`Skill`, `SkillType`, `SkillSource` не меняем.
+`SkillType`, `SkillSource` stay unchanged. `Skill` gains optional
+`used_by_agents: z.number().int().nullish()` — populated on `GET /skills`
+(list); may be null on create/get-one until the next list refresh.
 
-## 5. Сервер
+## 5. Server
 
-### 5.1 Модуль `server/src/modules/skills/`
+### 5.1 Module `server/src/modules/skills/`
 
-Структура один в один с `modules/agents/`: `routes.ts` (дефолтный экспорт —
-Fastify-плагин), `service.ts`, `repository.ts`, `helpers.ts`, `constants.ts`.
+Structure mirrors `modules/agents/` one-to-one: `routes.ts` (default export is
+a Fastify plugin), `service.ts`, `repository.ts`, `helpers.ts`, `constants.ts`.
 
-Регистрация: одна строка в `server/src/modules/index.ts` (модуль там уже
-упомянут как планируемый). Репозиторий выставить на DI-контейнере как
-`skillsRepo` — он нужен модулю reviews.
+Registration: one line in `server/src/modules/index.ts` (the module is already
+mentioned there as planned). Expose the repository on the DI container as
+`skillsRepo` — the reviews module needs it.
 
-Все запросы скоупятся по `workspaceId` через `getContext()`. Ошибки — через
-`NotFoundError`, глобальный хендлер оформляет конверт.
+All requests are scoped by `workspaceId` via `getContext()`. Errors go through
+`NotFoundError`; the global handler shapes the envelope.
 
-### 5.2 Эндпоинты
+### 5.2 Endpoints
 
-| Метод | Путь | Тело / параметры | Ответ |
+| Method | Path | Body / params | Response |
 |---|---|---|---|
 | GET | `/skills` | — | `Skill[]` |
 | GET | `/skills/:id` | uuid | `Skill` |
 | POST | `/skills` | `name`, `description`, `type`, `body`, `enabled?` | 201 `Skill` |
-| PUT | `/skills/:id` | те же поля, все опциональны | `Skill` |
+| PUT | `/skills/:id` | same fields, all optional | `Skill` |
 | DELETE | `/skills/:id` | uuid | `{ ok: true }` |
-| GET | `/skills/:id/versions` | uuid | `SkillVersion[]`, новые первыми |
+| GET | `/skills/:id/versions` | uuid | `SkillVersion[]`, newest first |
 | GET | `/skills/:id/versions/:version` | uuid + int | `SkillVersion` |
 | GET | `/skills/:id/stats` | uuid | `SkillStats` |
 | POST | `/skills/import` | `{ name?, description?, type?, body }` | 201 `Skill` |
 
-Правила `POST /skills`: `source: 'manual'`, `enabled` по умолчанию `true`.
+`POST /skills` rules: `source: 'manual'`, `enabled` defaults to `true`.
 
-Правила `POST /skills/import`:
+`POST /skills/import` rules:
 
-- `source: 'imported_url'`, `enabled: false` **всегда** — вычитка обязательна;
-- `body` — строка, `min(1).max(200_000)` (глобальный `bodyLimit` 1 МБ);
-- `name` необязателен: если пуст, берётся текст первого `# heading`, иначе
+- `source: 'imported_url'`, `enabled: false` **always** — vetting is required;
+- `body` — string, `min(1).max(200_000)` (global `bodyLimit` 1 MB);
+- `name` optional: if empty, take text from the first `# heading`, else
   `imported-skill`;
-- `type` по умолчанию `custom`;
-- содержимое сохраняется как есть, ничего не парсится и не исполняется.
+- `type` defaults to `custom`;
+- content is stored as-is; nothing is parsed or executed.
 
-Ответы Zod-схемами не сериализуем (как в agents) — возвращаем DTO.
+Responses are not serialized through Zod schemas (same as agents) — return DTOs.
 
-### 5.3 Stats: как считаем
+### 5.3 Stats: how we compute them
 
 - `used_by_agents` — `COUNT(*) FROM agent_skills WHERE skill_id = $1`.
-- `findings_30d` и `findings_by_category` — findings за 30 дней из прогонов
-  агентов, у которых этот скил привязан и включён. Атрибуция приблизительная
-  (на уровне агента, не скила) — зафиксировать это комментарием в
-  `repository.ts`, чтобы позже заменить на таблицу `skill_usage`.
-- `pull_frequency` и `accept_rate` — `null` + `// TODO(skills-telemetry)`.
-  UI рисует `—`. Телеметрия «скил попал в промпт» / «предложение принято» не
-  собирается; заводить её — отдельная задача.
+- `findings_30d` and `findings_by_category` — findings from the last 30 days
+  on runs of agents that have this skill linked and enabled. Attribution is
+  approximate (agent-level, not skill-level) — document that with a comment in
+  `repository.ts` so it can later be replaced by a `skill_usage` table.
+- `pull_frequency` and `accept_rate` — `null` + `// TODO(skills-telemetry)`.
+  UI shows `—`. Telemetry for "skill entered the prompt" / "suggestion accepted"
+  is not collected; that is a separate task.
 
-### 5.4 Изменения в модуле agents
+### 5.4 Changes in the agents module
 
-- `GET /agents/:id/skills` возвращает `AgentSkillLinkView[]`, отсортированные
-  по `order`.
-- `POST /agents/:id/skills` — расширить `SetSkillsBody` до
-  `{ skills: [{ skill_id, order, enabled }] }` как канонической формы
-  (существующие `skill_ids` / `skill_id` оставить для совместимости).
-- `PATCH /agents/:id/skills/:skillId` — переключить `enabled` у связи.
-- `DELETE /agents/:id/skills/:skillId` — отвязать; `repository.unlinkSkill()`
-  уже написан, роута нет.
-- Правки привязок **не бумпают** `agents.version` — текущее поведение
-  сохраняем.
+- `GET /agents/:id/skills` returns `AgentSkillLinkView[]`, sorted by `order`.
+- `POST /agents/:id/skills` — extend `SetSkillsBody` to
+  `{ skills: [{ skill_id, order, enabled }] }` as the canonical form
+  (keep existing `skill_ids` / `skill_id` for compatibility).
+- `PATCH /agents/:id/skills/:skillId` — toggle link `enabled`.
+- `DELETE /agents/:id/skills/:skillId` — unlink; `repository.unlinkSkill()`
+  already exists, the route does not.
+- Link edits **do not bump** `agents.version` — keep current behavior.
 
-## 6. Инъекция в промпт и трасса
+## 6. Prompt injection and trace
 
-Это ядро фичи. `reviewer-core` **не меняем**.
+This is the core of the feature. `reviewer-core` is **not** changed.
 
-В `server/src/modules/reviews/run-executor.ts` перед вызовом
+In `server/src/modules/reviews/run-executor.ts`, before calling
 `reviewPullRequest`:
 
-1. Загрузить тела скилов: `skillsRepo.bodiesForAgent(agentId)` →
+1. Load skill bodies: `skillsRepo.bodiesForAgent(agentId)` →
    `SELECT s.name, s.body FROM agent_skills l JOIN skills s ON s.id = l.skill_id
    WHERE l.agent_id = $1 AND l.enabled AND s.enabled ORDER BY l.order ASC`.
-2. Каждое тело префиксовать заголовком `### <name>` — чтобы блок в трассе
-   читался поскилово. Склейка в один блок делается уже в `assemblePrompt`.
-3. Передать `...(bodies.length ? { skills: bodies } : {})` в
-   `reviewPullRequest`. Пустой массив не передаём — секции быть не должно
-   (конвенция reviewer-core: отсутствующий слот не рендерится).
-4. Залогировать событие в `runLog`: `skills.loaded` с `{ count, names }` —
-   в live-логе видно, какие скилы подтянулись.
-5. В аварийном пути `traceFromBuffer()` (`run-executor.ts:435`) тоже проставить
-   `skills`, иначе при падении блок теряется.
+2. Prefix each body with `### <name>` so the trace block is readable per skill.
+   Concatenation into one block is already done in `assemblePrompt`.
+3. Pass `...(bodies.length ? { skills: bodies } : {})` into
+   `reviewPullRequest`. Do not pass an empty array — the section must be absent
+   (reviewer-core convention: a missing slot is not rendered).
+4. Log a `runLog` event: `skills.loaded` with `{ count, names }` — so the live
+   log shows which skills were pulled in.
+5. On the fallback path `traceFromBuffer()` (`run-executor.ts:435`), also set
+   `skills`, otherwise the block is lost on failure.
 
-После этого `prompt_assembly.skills` перестаёт быть `null`, и уже существующий
-`PromptBlock` в `TraceBody.tsx` отрисует блок «Skills» без правок.
+After that, `prompt_assembly.skills` stops being `null`, and the existing
+`PromptBlock` in `TraceBody.tsx` renders the "Skills" block with no UI changes.
 
-В клиентском `TraceBody` добавить рядом с меткой блока оценку токенов
-`~N tokens` (`ceil(text.length / 4)`) — для всех блоков одинаково, чтобы
-«додані токени» были видны сравнением прогонов.
+In the client `TraceBody`, add a `~N tokens` estimate next to the block label
+(`ceil(text.length / 4)`) — same for all blocks, so added tokens are visible
+when comparing runs.
 
-## 7. Клиент
+## 7. Client
 
-### 7.1 Навигация
+### 7.1 Navigation
 
-В `client/src/vendor/ui/nav.ts` (вендорный файл — правка осознанная) добавить
-секцию `SKILLS LAB` и перенести туда `Agents`, добавить `Skills`
-(`href: "/skills"`, icon `Sparkles`, `gKey: "s"`). Пункты из макета, для которых
-нет роутов (Conventions, Eval Dashboard, Multi-Agent Review, Agent Performance,
-CI Runs, Memory, Project Context), **не добавляем** — иначе получим мёртвые
-ссылки. `activeKeyFor()` уже умеет `/skills`.
+In `client/src/vendor/ui/nav.ts` (vendored file — intentional edit) add a
+`SKILLS LAB` section, move `Agents` into it, and add `Skills`
+(`href: "/skills"`, icon `Sparkles`, `gKey: "s"`). Mockup items that have no
+routes (Conventions, Eval Dashboard, Multi-Agent Review, Agent Performance,
+CI Runs, Memory, Project Context) are **not** added — that would create dead
+links. `activeKeyFor()` already understands `/skills`.
 
-### 7.2 Раскладка: полный аналог агентов
+### 7.2 Layout: always-split Skills Lab (mockup)
 
-Механика повторяет `/agents` буквально, включая размеры и поведение.
+Skills Lab matches the design mockups: **list + detail always**, not a
+separate grid landing (unlike `/agents`).
 
-**`/skills` — грид карточек.** Тонкий серверный `page.tsx` → клиентский
-`SkillsListView` внутри `AppShell` с крошками `Skills Lab / Skills`. Шапка:
-заголовок, подзаголовок, поиск, справа `Add Skill` — `Dropdown` с пунктами
-«Create skill» и «Import from file». Грид —
-`repeat(auto-fill, minmax(280px, 1fr))`, `gap: 14`, как
-`AgentsListView/constants.ts`. Состояния `Skeleton` / `ErrorState` /
-`EmptyState` — по образцу `AgentsListView.tsx:66-82`. Клик по карточке:
-`router.push('/skills/:id?tab=config')`.
+**`/skills`.** Client page: while skills load, show a skeleton shell; if the
+list is empty — empty state + Create/Import entry points (reuse
+`SkillsListView` empty chrome or equivalent); if the list is non-empty —
+`router.replace('/skills/:firstId?tab=preview')` so the user lands on the
+split editor with the Preview tab (side preview from the requirements).
 
-**`/skills/:id` — экран со скриншотов.** Клиентский `page.tsx`, повторяющий
-`agents/[id]/page.tsx`: контейнер `height: calc(100vh - 52px)`, слева колонка
-`width: 280`, `flexShrink: 0`, `borderRight: 1px solid var(--border)`,
-`background: var(--bg-surface)` — заголовок «Skills», кнопка `Add Skill` и
-прокручиваемый список `SkillCard` с `active={s.id === id}`; справа шапка
-(иконка, имя, бейдж типа, бейдж версии `v{n}`, справа `Run on evals` —
-задизейблен с тайтлом «Coming soon», раз вкладка Evals вне объёма) и под ней
-таб-бар с телом. Состояние таба живёт в `?tab=`, `VALID_TABS = ["config",
-"preview", "stats", "versions"]`, невалидное значение схлопывается в `config`.
-Крошки: `Skills Lab / Skills / <имя>`.
+**`/skills/:id` — primary UI.** Container `height: calc(100vh - 52px)`, left
+column `width: 280`, `flexShrink: 0`, `borderRight: 1px solid var(--border)`,
+`background: var(--bg-surface)` — "Skills" heading, `Add Skill` dropdown
+(Create / Import from file), client search (`Search skills…`), scrollable
+`SkillCard` list with `active={s.id === id}`. Selecting a card navigates to
+`/skills/:id?tab=preview` (default side view is Preview). Switching cards
+while already on an editor tab may keep the current `?tab=`. Right side:
+header (icon, name, type badge, version `v{n}`, disabled `Run on evals` with
+title "Coming soon") and tab body. `VALID_TABS = ["config", "preview",
+"stats", "versions"]`; missing/invalid `?tab=` collapses to **`preview`**.
+Breadcrumbs: `Skills Lab / Skills / <name>`. Create/Import flows may land on
+`?tab=config` so the author can edit/vet immediately.
 
-Структура папок:
+Folder structure:
 
     client/src/app/skills/
-    ├── page.tsx                       # server, тонкий → SkillsListView
+    ├── page.tsx                       # redirect to first skill or empty state
     ├── _components/
-    │   ├── SkillCard/                 # карточка: и в гриде, и в левой колонке
-    │   ├── SkillsListView/
+    │   ├── SkillCard/                 # left-rail card
+    │   ├── skillTypeBadge.ts          # shared SkillType → badge colors
+    │   ├── SkillsListView/            # empty-state / redirect helper chrome
     │   │   └── _components/ImportSkillDrawer/
-    │   └── SkillBodyEditor/           # textarea + гуттер + счётчик токенов
+    │   └── SkillBodyEditor/           # textarea + gutter + token count
     └── [id]/
-        ├── page.tsx                   # "use client": сплит-пейн, ?tab= в URL
+        ├── page.tsx                   # "use client": split pane, ?tab= in URL
         └── _components/SkillEditor/
             └── _components/{ConfigTab,PreviewTab,StatsTab,VersionsTab}/
 
-`SkillCard` — один компонент для обоих мест, как `AgentCard`: принимает
-`active?`, `onClick`, `onToggle`. Содержимое: иконка, имя моноширинным, тумблер
-`enabled`, кнопка удаления, описание в две строки, бейджи типа (`rubric`) и
-источника (`Manual` / `Imported` / `Extracted` / `Community`), строка метрик
-`N agents · —% pull · —% accept`. Для `source != 'manual'` при `enabled=false` —
-бейдж «needs vetting» с тайтлом «Untrusted source — vet before enabling».
+`SkillCard` — left-rail card: `active?`, `onClick`, `onToggle`. Contents:
+icon, monospace name, `enabled` toggle, delete button, two-line description,
+**type badge colored by `SkillType`** (same map as agent Skills tab:
+rubric/accent, convention/ok, security/crit, custom/muted), source badge
+(`Manual` / `Imported` / `Extracted` / `Community`), metrics line
+`{used_by_agents} agents · —% pull · —% accept`. `GET /skills` includes
+`used_by_agents` (count of `agent_skills` rows) on each skill so cards do not
+N+1 stats. For `source != 'manual'` when `enabled=false` — "needs vetting"
+badge with title "Untrusted source — vet before enabling".
 
-### 7.3 Вкладки редактора
+### 7.3 Editor tabs
 
-**Config** — форма: `Name` (обяз.), `Description`, `Type` (select по
-`SkillType`), `Skill body` (`SkillBodyEditor`). Подпись под описанием
-директивная, из требований: описание — это интерфейс скила, по нему агент
-решает, подтягивать его или нет. Шапка вкладки: бейдж `v{version}`, тумблер
-`Enabled`, кнопка `Save`. Пока форма грязная — бейдж `unsaved` рядом с именем
-файла и активная кнопка `Save`; после успеха — тост и сброс dirty.
+**Config** — form: `Name` (required), `Description`, `Type` (select over
+`SkillType`), `Skill body` (`SkillBodyEditor`). Caption under description is
+directive, from the requirements: the description is the skill's interface;
+the agent uses it to decide whether to pull the skill in. Tab header: version
+badge `v{version}`, `Enabled` toggle, `Save` button. While the form is dirty —
+`unsaved` badge next to the file name and an active `Save`; on success — toast
+and dirty reset.
 
-**Preview** — заголовок «Rendered as the reviewing agent receives it», рендер
-`body` через примитив `Markdown` (`@devdigest/ui`) внутри карточки.
+**Preview** — heading "Rendered as the reviewing agent receives it", render
+`body` via the `Markdown` primitive (`@devdigest/ui`) inside a card.
 
-**Stats** — четыре `MetricCard` (`Used by`, `Pull frequency`, `Accept rate`,
-`Findings (30D)`), список «Agents using this skill» со ссылками на
-`/agents/:id`, донат `Findings by category`. Внимание: `Donut` показать со
-**счётным** форматтером, не с денежным — на макете подписи в долларах, это
-артефакт прототипа. Для `null`-метрик — `—` и тайтл «Not tracked yet».
+**Stats** — four `MetricCard`s (`Used by`, `Pull frequency`, `Accept rate`,
+`Findings (30D)`), "Agents using this skill" list linking to `/agents/:id`,
+and a `Findings by category` donut. Note: show `Donut` with a **count**
+formatter, not currency — dollar labels on the mockup are a prototype
+artifact. For `null` metrics — `—` and title "Not tracked yet".
 
-**Versions** — список версий из `GET /skills/:id/versions`, номер и дата,
-раскрытие тела в `Markdown`. Только чтение, отката в этом объёме нет.
+**Versions** — version list from `GET /skills/:id/versions`, number and date,
+expand body in `Markdown`. Read-only; no rollback in this scope.
 
 ### 7.4 SkillBodyEditor
 
-Без новых зависимостей: `Textarea mono` + абсолютно спозиционированный гуттер с
-номерами строк, синхронизируемый по `scrollTop`. Над полем — чип `<slug>.md`,
-бейдж `unsaved`, справа `~N tokens` (`ceil(value.length / 4)`, пересчёт на
-каждый ввод).
+No new dependencies: `Textarea mono` + absolutely positioned line-number
+gutter synced via `scrollTop`. Above the field — `<slug>.md` chip, `unsaved`
+badge, `~N tokens` on the right (`ceil(value.length / 4)`, recomputed on every
+keystroke).
 
-### 7.5 Импорт
+### 7.5 Import
 
-Кнопка `Add Skill` — дропдаун: `Create skill` (модалка как `CreateAgentModal`)
-и `Import from file` (дровер).
+`Add Skill` button — dropdown: `Create skill` (modal like `CreateAgentModal`)
+and `Import from file` (drawer).
 
-Дровер импорта:
+Import drawer:
 
-1. `<input type="file" accept=".md,.markdown,text/markdown">`. Любое другое
-   расширение или MIME — inline-ошибка «Only .md files are supported», запрос
-   не уходит. Архивы не принимаются, распаковки в коде нет.
-2. Файл читается в браузере (`file.text()`), имя предзаполняется из первого
+1. `<input type="file" accept=".md,.markdown,text/markdown">`. Any other
+   extension or MIME — inline error "Only .md files are supported", no request
+   is sent. Archives are not accepted; there is no unpacking code.
+2. File is read in the browser (`file.text()`), name prefilled from the first
    `# heading`.
-3. Экран превью: имя, тип, рендер `Markdown` тела, предупреждение о доверии —
-   чужой скил это чужие инструкции в промпте агента, он будет создан
-   выключенным.
-4. Только по кнопке `Import skill` уходит `POST /skills/import`. До
-   подтверждения в БД ничего не пишется.
-5. Успех: тост, переход на `/skills/:id`, скил в списке выключен и помечен
-   «needs vetting».
+3. Preview screen: name, type, `Markdown` render of the body, trust warning —
+   a third-party skill is third-party instructions in the agent prompt; it will
+   be created disabled.
+4. Only the `Import skill` button sends `POST /skills/import`. Nothing is
+   written to the DB before confirmation.
+5. Success: toast, navigate to `/skills/:id`, skill appears disabled and marked
+   "needs vetting".
 
-### 7.6 Вкладка Skills в редакторе агента
+### 7.6 Skills tab in the agent editor
 
-В `client/src/app/agents/[id]/_components/AgentEditor/constants.ts` добавить таб
-`skills` (ключ i18n `editor.tabs.skills` уже есть) и в `VALID_TABS` на
-`agents/[id]/page.tsx`.
+In `client/src/app/agents/[id]/_components/AgentEditor/constants.ts` add a
+`skills` tab (i18n key `editor.tabs.skills` already exists) and include it in
+`VALID_TABS` on `agents/[id]/page.tsx`.
 
-Содержимое: упорядоченный список привязанных скилов; у каждого — тумблер
-`enabled` (мгновенный `PATCH`), кнопки вверх/вниз для порядка (drag-n-drop не
-делаем, библиотеки нет), кнопка отвязки, ссылка на скил. Сверху дропдаун
-«Add skill» с непривязанными скилами воркспейса. Подпись: порядок определяет
-последовательность блоков в промпте.
+Visual target: the agent Skills-tab mockup (grip + checkbox rows, filter,
+"Order matters…" hint). The list is **linked skills only** (not the full
+workspace catalog). Add skill and unlink stay in the product UI even though
+the mockup omits them — linking and enabling are separate concerns.
 
-### 7.7 Данные и i18n
+#### Header
 
-`client/src/lib/hooks/skills.ts`, реэкспорт из `lib/hooks/index.ts`:
+- Left: title `Skills`, then `{n} of {total} enabled` in accent color
+  (`n` = link-enabled count, `total` = linked count; not affected by filter).
+- Right: client filter input (`agents.skills.filterPlaceholder` =
+  `Filter skills…`) matching name (case-insensitive), then `Add skill`
+  dropdown of unlinked workspace skills.
+- Below: hint copy exactly —
+  `Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.`
+
+#### Row anatomy (left → right)
+
+1. Drag handle — six-dot grip (`GripVertical` in the icon registry), muted.
+2. `Checkbox` (not `Toggle`) for `agent_skills.enabled` — instant `PATCH`.
+3. Skill name — monospace, `var(--text-primary)` when enabled; still a link to
+   `/skills/:id` but styled as plain text (no accent-link look). Set
+   `draggable={false}` on the anchor so nested drag does not fight the row.
+4. Type badge on the right — colored by `SkillType`:
+
+   | Type | color | bg |
+   |---|---|---|
+   | `rubric` | `var(--accent)` | `var(--accent-bg)` |
+   | `convention` | `var(--ok)` | `var(--ok-bg)` |
+   | `security` | `var(--crit)` | `var(--crit-bg)` |
+   | `custom` | `var(--text-secondary)` | `var(--info-bg)` |
+
+5. Unlink (ghost trash) — keep for product; not shown on the mockup.
+6. If `skill_enabled === false`, keep the `globally off` warn badge.
+
+Disabled link (`enabled === false`): whole row at ~0.55 opacity (name + badge
+dimmed). Filter is client-side over the linked list; DnD maps drop indices
+through `skill_id` back onto the full ordered array.
+
+#### Order via drag-and-drop (required)
+
+Up/down arrows are **not used** — they are awkward with more than two skills.
+
+Behavior:
+
+- Every list row is `draggable`; the grip handle is the primary affordance;
+  the whole row is also draggable.
+- During drag: highlight the drop target, `cursor: grabbing`.
+- On `drop` — reorder and call `useSetAgentSkills` /
+  `POST /agents/:id/skills` once with the full list and recomputed
+  `order` (0..n-1). There is no partial PATCH for order.
+- While the mutation is `isPending` — new drag is blocked.
+- Keyboard a11y: `Alt+↑` / `Alt+↓` on the focused row moves neighbors via the
+  same API call (not mentioned in the visible hint).
+- Do **not** add `@dnd-kit` / `react-beautiful-dnd` — use HTML5 Drag and Drop
+  (`draggable`, `onDragStart` / `onDragOver` / `onDrop`). Extract helper
+  `reorderLinks(links, from, to)` next to the component for unit tests.
+
+### 7.7 Data and i18n
+
+`client/src/lib/hooks/skills.ts`, re-exported from `lib/hooks/index.ts`:
 `useSkills`, `useSkill`, `useSkillVersions`, `useSkillStats`, `useCreateSkill`,
-`useUpdateSkill`, `useDeleteSkill`, `useImportSkill`; ключи `["skills"]`,
-`["skill", id]`, `["skill-versions", id]`, `["skill-stats", id]`. Мутации
-инвалидируют список и делают `setQueryData(["skill", id])`. В
+`useUpdateSkill`, `useDeleteSkill`, `useImportSkill`; keys `["skills"]`,
+`["skill", id]`, `["skill-versions", id]`, `["skill-stats", id]`. Mutations
+invalidate the list and `setQueryData(["skill", id])`. In
 `lib/hooks/agents.ts` — `useAgentSkills`, `useSetAgentSkills`,
 `useToggleAgentSkill`, `useUnlinkAgentSkill`.
 
-Компоненты не ходят в `fetch` напрямую — только через `lib/api.ts`.
+Components do not call `fetch` directly — only via `lib/api.ts`.
 
-`client/messages/en/skills.json` уже содержит `page`, `detail`, `drawer`,
-`file`, `listItem`, `preview`. Дописать ветку `editor` (лейблы табов, `unsaved`,
-`tokens`, поля формы, тексты Stats и Versions) и `page.subtitle` для шапки
-грида. Ветки `url` и `community` оставить нетронутыми — они для будущих
-источников импорта.
+`client/messages/en/skills.json` already has `page`, `detail`, `drawer`,
+`file`, `listItem`, `preview`. Add an `editor` branch (tab labels, `unsaved`,
+`tokens`, form fields, Stats and Versions copy) and `page.subtitle` for the
+grid header. Leave `url` and `community` branches untouched — they are for
+future import sources.
 
-## 8. Сид: агент и скилы
+## 8. Seed: agent and skills
 
-Новый агент **Test Quality Reviewer** — проверяет качество тестов: непокрытые
-ветки, пропущенные corner cases, избыточное мокирование, флейки. Промпт-исходник
-в `docs/agent-prompts/test-quality-reviewer.md` по формату из
-`docs/agent-prompts/README.md` (роль, что искать, рубрика severity, семантика
-вердикта, дисциплина findings), тело дублируется в
-`server/src/db/seed-prompts.ts` и вставляется в `seed.ts` идемпотентно.
+New agent **Test Quality Reviewer** — reviews test quality: uncovered branches,
+missed corner cases, over-mocking, flakiness. Prompt source lives in
+`docs/agent-prompts/test-quality-reviewer.md` following
+`docs/agent-prompts/README.md` (role, what to look for, severity rubric,
+verdict semantics, findings discipline); the body is duplicated in
+`server/src/db/seed-prompts.ts` and inserted idempotently from `seed.ts`.
 
-Четыре скила:
+Four skills:
 
-| Скил | Тип | Как заводится | Привязка |
+| Skill | Type | How created | Link |
 |---|---|---|---|
-| `test-coverage-nudge` | custom | сид (`manual`) | Test Quality Reviewer |
-| `test-corner-cases` | rubric | сид (`manual`) | Test Quality Reviewer |
-| `pr-quality-rubric` | rubric | сид (`manual`) | Test Quality Reviewer |
-| `api-contract-breaking-change` | convention | **импорт через UI** из `docs/sample-skills/api-contract-breaking-change.md` | General Reviewer (после вычитки и включения) |
+| `test-coverage-nudge` | custom | seed (`manual`) | Test Quality Reviewer |
+| `test-corner-cases` | rubric | seed (`manual`) | Test Quality Reviewer |
+| `pr-quality-rubric` | rubric | seed (`manual`) | Test Quality Reviewer |
+| `api-contract-breaking-change` | convention | **UI import** from `docs/sample-skills/api-contract-breaking-change.md` | General Reviewer (after vetting and enabling) |
 
-Файл для импорта кладём в `docs/sample-skills/` заранее — это и есть
-демонстрация полного пути импорта, включая превью и вычитку. Папка намеренно
-называется не `docs/skills/`, чтобы не путать её с `.claude/skills/` —
-рабочими скилами агентов в самом репозитории.
+Place the import file in `docs/sample-skills/` ahead of time — that is the
+demo of the full import path, including preview and vetting. The folder is
+intentionally not `docs/skills/`, to avoid confusion with `.claude/skills/` —
+working agent skills inside this repo.
 
-Важно: сид вставляет агента напрямую, минуя репозиторий, поэтому строки в
-`agent_versions` не появляются, пока агента не отредактируют через API. Это
-существующее поведение, менять его в рамках фичи не нужно.
+Note: seed inserts the agent directly, bypassing the repository, so
+`agent_versions` rows do not appear until the agent is edited via the API.
+That is existing behavior; do not change it for this feature.
 
-## 9. Контрольный эксперимент
+## 9. Control experiment
 
-Оба сценария гоняются как «до/после» переключением `agent_skills.enabled`, без
-редактирования промптов.
+Both scenarios are run as before/after by toggling `agent_skills.enabled`,
+without editing prompts.
 
-**Test Quality.** PR с тестом только на happy-path. Прогон 1: у Test Quality
-Reviewer все скилы выключены — ожидаем пропуск. Прогон 2: скилы включены —
-ожидаем находки про непокрытую ветку и граничный случай.
+**Test Quality.** PR with a happy-path-only test. Run 1: all skills disabled on
+Test Quality Reviewer — expect a miss. Run 2: skills enabled — expect findings
+about an uncovered branch and a corner case.
 
-**API Contract.** PR со сменой сигнатуры роута. Прогон 1: General Reviewer без
-`api-contract-breaking-change` — пропуск. Прогон 2: скил включён — обнаружен
-breaking change.
+**API Contract.** PR that changes a route signature. Run 1: General Reviewer
+without `api-contract-breaking-change` — miss. Run 2: skill enabled — breaking
+change found.
 
-В обоих случаях открываем трассу прогона → секцию `Prompt assembly`: во втором
-прогоне присутствует блок `Skills`, а суммарные `tokens_in` выше на величину
-блока.
+In both cases open the run trace → `Prompt assembly`: the second run has a
+`Skills` block, and total `tokens_in` is higher by roughly the block size.
 
-Сценарий и ожидаемые находки записать в `docs/experiments/skills-ab.md`.
+Record the scenario and expected findings in `docs/experiments/skills-ab.md`.
 
-## 10. Тесты
+## 10. Tests
 
-Сервер (`server/test/`, vitest + Testcontainers, гейт по `dockerAvailable()`):
+Server (`server/test/`, vitest + Testcontainers, gated by `dockerAvailable()`):
 
-- `skills.it.test.ts` — CRUD, изоляция по воркспейсу, бамп версии только при
-  смене `body`, снапшот в `skill_versions`, импорт создаёт `enabled=false` и
-  `source='imported_url'`, отказ на пустом теле.
-- `agent-skills.it.test.ts` — привязка, порядок, `PATCH` тумблера, отвязка,
-  каскад при удалении скила.
-- `run-executor` — юнит на хелпер резолва: возвращает только пары «глобально
-  включён + включён у агента», в порядке `order`; выключенный скил не попадает в
-  `prompt_assembly.skills`; при нуле скилов слот `null`.
+- `skills.it.test.ts` — CRUD, workspace isolation, version bump only on `body`
+  change, snapshot in `skill_versions`, import creates `enabled=false` and
+  `source='imported_url'`, reject empty body.
+- `agent-skills.it.test.ts` — link, order, toggle `PATCH`, unlink, cascade on
+  skill delete.
+- `run-executor` — unit on the resolve helper: returns only pairs that are
+  globally enabled + agent-enabled, in `order`; a disabled skill does not
+  appear in `prompt_assembly.skills`; with zero skills the slot is `null`.
 
-Клиент (`client/`, vitest + RTL, fetch замокан): `SkillCard`, `SkillsListView`
-(поиск, грид, пустое состояние, переход по клику), `SkillEditor` (переключение
-табов через `?tab=`, dirty/unsaved), `ImportSkillDrawer` (отказ на не-md, превью
-до сохранения, вызов импорта только по подтверждению), `SkillsTab` редактора
-агента (тумблер и порядок).
+Client (`client/`, vitest + RTL, fetch mocked): `SkillCard` (type colors,
+`used_by_agents` metrics), `SkillsListView` (redirect to split `?tab=preview`
+or empty state), `SkillEditor` (tab switching via `?tab=`, dirty/unsaved),
+`ImportSkillDrawer` (reject non-md, preview before save, import only on
+confirm), agent editor `SkillsTab` (checkbox, unlink, drag-and-drop reorder →
+`useSetAgentSkills` with new `order`; filter; unit on helpers `reorderLinks` /
+`filterLinkedSkills` + drop via `fireEvent`).
 
-## 11. Критерии приёмки
+## 11. Acceptance criteria
 
-1. Скил создаётся и редактируется в UI; смена тела поднимает версию, она видна
-   на вкладке Versions.
-2. У Test Quality Reviewer привязаны свои скилы; у General Reviewer —
-   импортированный `api-contract-breaking-change`.
-3. Включённый скил виден в трассе отдельным блоком `Skills` и в live-логе
-   событием `skills.loaded`; выключенный — не виден ни там, ни там.
-4. Импорт прошёл через экран превью; принимается только `.md`; исполняемое
-   ничего не запускалось, распаковки архивов в кодовой базе нет.
-5. Контрольный эксперимент воспроизводится на обоих сценариях, разница в
-   `tokens_in` между прогонами видна.
-6. `pr-self-review` существует с выключенным автовызовом
-   (`.claude/skills/pr-self-review/`), вызван вручную и подтянул и фронтовые, и
-   бэкендные скилы. Это проверка репозиторной оснастки, продуктового кода не
-   требует.
+1. A skill can be created and edited in the UI; changing the body bumps the
+   version, visible on the Versions tab. Skills Lab is always-split; selecting
+   a skill opens the Preview tab; cards show type colors and `N agents`.
+2. Test Quality Reviewer has its skills linked; General Reviewer has the
+   imported `api-contract-breaking-change`.
+3. An enabled skill appears in the trace as a separate `Skills` block and in
+   the live log as `skills.loaded`; a disabled one appears in neither.
+4. Import went through the preview screen; only `.md` is accepted; nothing
+   executable was run; there is no archive unpacking in the codebase.
+5. The control experiment reproduces on both scenarios; the `tokens_in`
+   difference between runs is visible.
+6. `pr-self-review` exists with auto-invoke off
+   (`.claude/skills/pr-self-review/`), was invoked manually, and pulled in both
+   frontend and backend skills. This checks repo tooling, not product code.
+7. On the agent's Skills tab, order is changed via drag-and-drop; there are no
+   up/down arrows in the UI; after drop, prompt order matches the list.
 
-## 12. Вне объёма
+## 12. Out of scope
 
-Импорт по URL, каталог community-скилов, архивы, вкладка Evals и рабочая кнопка
-«Run on evals», серверный подсчёт токенов по слотам промпта, реальная
-телеметрия `pull frequency` / `accept rate`, откат к прошлой версии скила,
-drag-n-drop сортировка, автоизвлечение скилов из кодовой базы
-(`source: 'extracted'`).
+URL import, community skill catalog, archives, Evals tab and a working
+"Run on evals" button, server-side token counts per prompt slot, real
+`pull frequency` / `accept rate` telemetry, rollback to a previous skill
+version, auto-extracting skills from the codebase (`source: 'extracted'`).
 
-## 13. Риски
+## 13. Risks
 
-- **Двойная копия контрактов.** `vendor/shared` продублирован в `server/` и
-  `client/`, синхронизации нет. Расхождение ломает типы молча.
-- **Правка вендорного `nav.ts`.** Файл помечен как вендорный; изменение может
-  конфликтовать с обновлением дизайн-системы из курса.
-- **Приблизительная атрибуция findings к скилу** на вкладке Stats. Цифра
-  «Findings (30D)» на самом деле про агентов, использующих скил. Заменяется
-  таблицей `skill_usage`, когда понадобится точность.
-- **Инъекция инструкций.** Импортированный скил после включения попадает в
-  промпт как доверенный текст. Единственная защита — `enabled=false` по
-  умолчанию и ручная вычитка. Проговорить это в видео.
+- **Duplicated contracts.** `vendor/shared` is copied in `server/` and
+  `client/` with no sync. Drift breaks types silently.
+- **Vendored `nav.ts` edit.** The file is marked vendored; the change may
+  conflict with a design-system update from the course.
+- **Approximate skill attribution for findings** on the Stats tab. The
+  "Findings (30D)" number is really about agents that use the skill. Replace
+  with a `skill_usage` table when precision is needed.
+- **Instruction injection.** An imported skill, once enabled, enters the prompt
+  as trusted text. The only guard is default `enabled=false` and manual
+  vetting. Call this out in the demo video.
+
+## 14. Implementation flag: DnD reorder in SkillsTab
+
+| Field | Value |
+|---|---|
+| ID | `skills-agent-tab-dnd-reorder` |
+| Status | `done` |
+| Package | `client/` |
+| Scope | `SkillsTab` UI + i18n + tests only; do not touch API/contracts |
+| Entry point | `client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.tsx` |
+| API | already exists: `useSetAgentSkills` → `POST /agents/:id/skills` |
+| Blockers | none |
+| Done when | no arrows; DnD changes order; reorder test green; `orderHint` is current |
+
+Checklist:
+
+- [x] Remove `ArrowUp` / `ArrowDown` and `move(index, delta)`
+- [x] Add HTML5 DnD + visual grip handle (`GripVertical`)
+- [x] On drop call existing `setSkills.mutate` with the full array
+- [x] Match mockup chrome: filter, checkbox, type-colored badges, dimmed rows
+- [x] Keep Add skill + unlink (mockup omits them; product still needs them)
+- [x] Update `client/messages/en/agents.json` → `skills.orderHint` (mockup copy)
+- [x] Update `SkillsTab.test.tsx` for DnD / filter / checkbox
+- [x] Remove the `no drag-n-drop` comment in `SkillsTab.tsx`

@@ -1,4 +1,4 @@
-/* SkillCard — shared card for the skills grid and the editor left rail. */
+/* SkillCard — left-rail card for the always-split Skills Lab. */
 "use client";
 
 import React from "react";
@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Badge, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { useDeleteSkill } from "../../../../lib/hooks/skills";
+import { SKILL_TYPE_BADGE } from "../skillTypeBadge";
 import { s } from "./styles";
 
 export function SkillCard({
@@ -17,6 +18,7 @@ export function SkillCard({
 }: {
   skill: Skill;
   active?: boolean;
+  /** Override; defaults to `skill.used_by_agents`. */
   agentsCount?: number | null;
   onClick?: () => void;
   onToggle?: (enabled: boolean) => void;
@@ -24,7 +26,9 @@ export function SkillCard({
   const t = useTranslations("skills");
   const del = useDeleteSkill();
   const needsVetting = skill.source !== "manual" && !skill.enabled;
-  const agentsLabel = agentsCount == null ? "—" : String(agentsCount);
+  const count = agentsCount ?? skill.used_by_agents;
+  const agentsLabel = count == null ? "—" : String(count);
+  const typeBadge = SKILL_TYPE_BADGE[skill.type];
 
   return (
     <div onClick={onClick} style={s.card(!!active, skill.enabled)}>
@@ -62,7 +66,7 @@ export function SkillCard({
       </div>
       <div style={s.description}>{skill.description || t("listItem.noDescription")}</div>
       <div style={s.badges}>
-        <Badge color="var(--accent)" bg="var(--accent-bg)">
+        <Badge color={typeBadge.color} bg={typeBadge.bg}>
           {t(`listItem.type.${skill.type}`)}
         </Badge>
         <Badge color="var(--text-secondary)">{t(`listItem.source.${skill.source}`)}</Badge>

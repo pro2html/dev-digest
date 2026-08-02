@@ -17,6 +17,7 @@ const SKILL: Skill = {
   body: "# Coverage\nCheck branches.",
   enabled: true,
   version: 2,
+  used_by_agents: 3,
 };
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -31,8 +32,8 @@ function renderWithIntl(ui: React.ReactElement) {
 }
 
 describe("SkillCard", () => {
-  it("renders name, type, source and metrics", () => {
-    renderWithIntl(<SkillCard skill={SKILL} agentsCount={3} />);
+  it("renders name, type, source and metrics from used_by_agents", () => {
+    renderWithIntl(<SkillCard skill={SKILL} />);
     expect(screen.getByText("test-coverage-nudge")).toBeInTheDocument();
     expect(screen.getByText("custom")).toBeInTheDocument();
     expect(screen.getByText("Manual")).toBeInTheDocument();

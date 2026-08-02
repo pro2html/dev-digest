@@ -56,6 +56,20 @@ export class SkillsRepository {
       .orderBy(asc(t.skills.name));
   }
 
+  /** Per-skill link counts for the Skills list cards (`N agents`). */
+  async listAgentCounts(workspaceId: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({
+        skillId: t.agentSkills.skillId,
+        n: count(),
+      })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+      .where(eq(t.skills.workspaceId, workspaceId))
+      .groupBy(t.agentSkills.skillId);
+    return new Map(rows.map((r) => [r.skillId, Number(r.n)]));
+  }
+
   async getById(workspaceId: string, id: string): Promise<SkillRow | undefined> {
     const [row] = await this.db
       .select()

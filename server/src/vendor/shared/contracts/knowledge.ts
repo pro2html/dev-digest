@@ -129,6 +129,8 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  /** Count of agent_skills links; set on GET /skills list, else nullish. */
+  used_by_agents: z.number().int().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
 

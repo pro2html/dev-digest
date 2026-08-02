@@ -1,5 +1,4 @@
-/* /skills/:id — Skill Editor. Left skill list + Config/Preview/Versions.
-   Tab state lives in ?tab=. Mirrors /agents/:id layout. */
+/* /skills/:id — always-split Skills Lab. Left list + editor tabs (?tab=). */
 "use client";
 
 import React from "react";
@@ -8,8 +7,10 @@ import { useTranslations } from "next-intl";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { AppShell } from "../../../components/app-shell";
 import { SkillCard } from "../_components/SkillCard";
+import { SKILL_TYPE_BADGE } from "../_components/skillTypeBadge";
 import { CreateSkillModal } from "../_components/SkillsListView/_components/CreateSkillModal";
 import { ImportSkillDrawer } from "../_components/SkillsListView/_components/ImportSkillDrawer";
+import { filterSkills } from "../_components/SkillsListView/helpers";
 import { SkillEditor } from "./_components/SkillEditor";
 import { VALID_TABS } from "./_components/SkillEditor/constants";
 import { useSkills, useSkill, useUpdateSkill } from "../../../lib/hooks/skills";
@@ -27,13 +28,17 @@ export default function SkillEditorPage() {
   const update = useUpdateSkill();
   const [creating, setCreating] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
+  const [filter, setFilter] = React.useState("");
 
-  const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
+  const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "preview";
   const setTab = (next: string) => {
     const sp = new URLSearchParams(search.toString());
     sp.set("tab", next);
     router.replace(`/skills/${id}?${sp.toString()}`);
   };
+
+  const visible = filterSkills(skills ?? [], filter);
+  const typeBadge = skill ? SKILL_TYPE_BADGE[skill.type] : null;
 
   const crumb = [
     { label: t("page.crumbLab") },
@@ -86,14 +91,42 @@ export default function SkillEditorPage() {
                 ]}
               />
             </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "7px 11px",
+                borderRadius: 7,
+                border: "1px solid var(--border)",
+                background: "var(--bg-elevated)",
+              }}
+            >
+              <Icon.Search size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder={t("page.searchPlaceholder")}
+                aria-label={t("page.searchPlaceholder")}
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: "var(--text-primary)",
+                  minWidth: 0,
+                }}
+              />
+            </div>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "0 12px 12px" }}>
-            {(skills ?? []).map((sk) => (
+            {visible.map((sk) => (
               <SkillCard
                 key={sk.id}
                 skill={sk}
                 active={sk.id === id}
-                onClick={() => router.push(`/skills/${sk.id}?tab=${tab}`)}
+                onClick={() => router.push(`/skills/${sk.id}?tab=preview`)}
                 onToggle={(enabled) => update.mutate({ id: sk.id, patch: { enabled } })}
               />
             ))}
@@ -110,9 +143,11 @@ export default function SkillEditorPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 28px 0", flexShrink: 0 }}>
               <Icon.Sparkles size={18} style={{ color: "var(--accent)" }} />
               <h1 style={{ fontSize: 18, fontWeight: 700 }}>{skill.name}</h1>
-              <Badge color="var(--accent)" bg="var(--accent-bg)">
-                {t(`listItem.type.${skill.type}`)}
-              </Badge>
+              {typeBadge && (
+                <Badge color={typeBadge.color} bg={typeBadge.bg}>
+                  {t(`listItem.type.${skill.type}`)}
+                </Badge>
+              )}
               <Badge color="var(--text-secondary)" mono>
                 {t("preview.version", { version: skill.version })}
               </Badge>

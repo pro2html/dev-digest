@@ -53,3 +53,13 @@ entry short (what happened, what to do instead).
 **Evidence:** `SkillsTab.test.tsx` initially mocked an 8-level path; Vitest still loaded real `useAgentSkills` until the mock matched `SkillsTab.tsx`’s 7-level import.
 
 **Action:** Copy the import path from the SUT file into `vi.mock(...)`; do not recount `../` from the test file.
+
+## 2026-08-02 — Recurring Error & Fix
+
+**Insight:** React warns when a style object mixes the `border` shorthand with a longhand override like `borderColor` during rerender (e.g. drag-over highlight). Split the base style into `borderWidth` / `borderStyle` / `borderColor` so drop-target state can safely change only `borderColor`.
+
+**Why it matters:** DnD (and any hover/selected row) that toggles `borderColor` on top of `border: "1px solid …"` spam the console and can drop the border inconsistently.
+
+**Evidence:** `SkillsTab` drag-over stderr during `SkillsTab.test.tsx`; fixed in `client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/styles.ts`.
+
+**Action:** Prefer longhand border properties whenever a state style will override one side of the border.

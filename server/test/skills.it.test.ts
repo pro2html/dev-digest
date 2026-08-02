@@ -67,7 +67,8 @@ d('skills module', () => {
 
     const listed = await app.inject({ method: 'GET', url: '/skills' });
     expect(listed.statusCode).toBe(200);
-    expect(listed.json().some((s: { id: string }) => s.id === skill.id)).toBe(true);
+    const listedSkill = listed.json().find((s: { id: string }) => s.id === skill.id);
+    expect(listedSkill).toMatchObject({ id: skill.id, used_by_agents: 0 });
 
     const updated = await app.inject({
       method: 'PUT',

@@ -1,14 +1,14 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Skill } from "@devdigest/shared";
 import messages from "../../../../../messages/en/skills.json";
 import { ToastProvider } from "../../../../lib/toast";
 
-const push = vi.fn();
+const replace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace }),
   usePathname: () => "/skills",
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({}),
@@ -28,6 +28,7 @@ const SKILLS: Skill[] = [
     body: "# Coverage",
     enabled: true,
     version: 1,
+    used_by_agents: 2,
   },
   {
     id: "sk2",
@@ -38,6 +39,7 @@ const SKILLS: Skill[] = [
     body: "# Rubric",
     enabled: true,
     version: 1,
+    used_by_agents: 1,
   },
 ];
 
@@ -55,7 +57,7 @@ import { SkillsListView } from "./SkillsListView";
 
 afterEach(() => {
   cleanup();
-  push.mockClear();
+  replace.mockClear();
   skillsData = SKILLS;
 });
 
@@ -73,31 +75,16 @@ function renderList() {
 }
 
 describe("SkillsListView", () => {
-  it("renders the grid of skills", () => {
+  it("redirects into the always-split editor on the Preview tab", () => {
     renderList();
-    expect(screen.getByText("test-coverage-nudge")).toBeInTheDocument();
-    expect(screen.getByText("pr-quality-rubric")).toBeInTheDocument();
-  });
-
-  it("filters skills by search", () => {
-    renderList();
-    fireEvent.change(screen.getByPlaceholderText("Search skills…"), {
-      target: { value: "rubric" },
-    });
-    expect(screen.getByText("pr-quality-rubric")).toBeInTheDocument();
-    expect(screen.queryByText("test-coverage-nudge")).not.toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith("/skills/sk1?tab=preview");
   });
 
   it("shows empty state when there are no skills", () => {
     skillsData = [];
     renderList();
+    expect(replace).not.toHaveBeenCalled();
     expect(screen.getByText("No skills yet")).toBeInTheDocument();
     expect(screen.getByText("Import from file")).toBeInTheDocument();
-  });
-
-  it("navigates to the skill editor on card click", () => {
-    renderList();
-    fireEvent.click(screen.getByText("test-coverage-nudge"));
-    expect(push).toHaveBeenCalledWith("/skills/sk1?tab=config");
   });
 });

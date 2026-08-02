@@ -9,7 +9,7 @@ import { IMPORTED_SKILL_FALLBACK_NAME } from './constants.js';
  */
 
 /** Map a persisted skill row to the public `Skill` DTO. */
-export function toSkillDto(row: SkillRow): Skill {
+export function toSkillDto(row: SkillRow, usedByAgents?: number | null): Skill {
   return {
     id: row.id,
     name: row.name,
@@ -20,6 +20,7 @@ export function toSkillDto(row: SkillRow): Skill {
     enabled: row.enabled,
     version: row.version,
     evidence_files: row.evidenceFiles ?? null,
+    used_by_agents: usedByAgents ?? null,
   };
 }
 
