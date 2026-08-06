@@ -100,7 +100,7 @@ d('GET /agents/:id/versions', () => {
       await app.inject({ method: 'POST', url: '/agents', payload: createBody })
     ).json().id as string;
 
-    await app.inject({ method: 'PUT', url: `/agents/${agentId}`, payload: { enabled: false } });
+    await app.inject({ method: 'PUT', url: `/agents/${agentId}`, payload: { is_enabled: false } });
 
     const versions = (
       await app.inject({ method: 'GET', url: `/agents/${agentId}/versions` })
