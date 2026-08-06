@@ -4,11 +4,34 @@ Both scenarios are run as before/after by toggling `agent_skills.enabled` only �
 do **not** edit agent system prompts between runs. After each run, open the run
 drawer → Trace → Prompt assembly and compare the Skills block and `tokens_in`.
 
+**Signal that skills fired:** finding titles use the canary prefixes below.
+A run without skills should not emit those prefixes (or should emit far fewer).
+
+| Skill | Canary title prefix |
+|---|---|
+| `api-contract-breaking-change` | `[API-CONTRACT]` |
+| `deprecation-policy` | `[DEPRECATION]` |
+| `breaking-change` | `[BREAKING]` |
+| `response-schema` | `[RESPONSE-SCHEMA]` |
+| `server-discipline` | `[SEMVER]` |
+| `test-coverage-nudge` | `[COVERAGE]` |
+| `test-corner-cases` | `[CORNER]` |
+| `pr-quality-rubric` | `[PR-QUALITY]` |
+
+Bodies live in `docs/sample-skills/` (re-import or paste into Skills Lab after
+edits). Seed Test Quality bodies are in `server/src/db/seed-prompts.ts` — if
+skills were already seeded, update bodies in the UI (seed does not overwrite).
+
+---
+
 ## Setup
 
 1. `pnpm db:seed` in `server/` (creates Test Quality Reviewer + three linked skills).
-2. In the UI, import `docs/sample-skills/api-contract-breaking-change.md`, vet it,
-   enable the skill globally, and link it to **General Reviewer** (Skills tab).
+2. For API Contract: import **one** skill —
+   `docs/sample-skills/api-contract-breaking-change.md` — vet, enable, link to
+   **General Reviewer**. Do **not** stack breaking-change / response-schema /
+   server-discipline / deprecation-policy for the first A/B (they overlap the
+   base prompt and blur the signal). Optional second skill: `deprecation-policy`.
 3. Pick (or create) a PR for each scenario below.
 
 ---
@@ -18,19 +41,17 @@ drawer → Trace → Prompt assembly and compare the Skills block and `tokens_in
 **Agent:** Test Quality Reviewer  
 **PR:** a change whose tests cover only the happy path (add an untested error /
 empty / boundary branch in production code, with a test that only asserts the
-success path).
+success path). Example branch: `lab02-tests` (`parsePageLimit`).
 
 | Run | Skills linked & enabled | Expected |
 |---|---|---|
-| A1 | all three seed skills **disabled** on the agent | Soft review — likely miss the uncovered branch / corner case; Prompt assembly has **no** Skills block; live log has no `skills.loaded` (or `count: 0` is not emitted — slot omitted). |
-| A2 | `test-coverage-nudge`, `test-corner-cases`, `pr-quality-rubric` **enabled** | Findings about the uncovered branch and the missing corner case; Prompt assembly shows a **Skills** block with `### <skill-name>` sections; live log shows `skills.loaded` with those names; `tokens_in` higher than A1 by roughly the Skills block size (`ceil(chars/4)` on the block). |
+| A1 | all three seed skills **disabled** on the agent | Soft review — likely miss the uncovered branch / corner case; **no** `[COVERAGE]` / `[CORNER]` titles; Prompt assembly has **no** Skills block; live log has no `skills.loaded`. |
+| A2 | `test-coverage-nudge`, `test-corner-cases`, `pr-quality-rubric` **enabled** | Findings with `[COVERAGE]` / `[CORNER]` (and maybe `[PR-QUALITY]`); Skills block present; `skills.loaded`; higher `tokens_in`. |
 
 **Expected findings (A2, illustrative):**
 
-- WARNING/CRITICAL: happy-path-only test leaves the new error/empty branch untested
-  (`test-coverage-nudge`).
-- WARNING: boundary / nullish / empty-collection case not asserted
-  (`test-corner-cases`).
+- WARNING/CRITICAL: `[COVERAGE] …` happy-path-only leaves a new branch untested.
+- WARNING: `[CORNER] …` empty / invalid / max-boundary case not asserted.
 
 ---
 
@@ -38,17 +59,19 @@ success path).
 
 **Agent:** General Reviewer  
 **PR:** a route/DTO signature change that breaks callers (renamed/removed field,
-changed status code, or narrowed type on a public contract).
+changed status code, or narrowed type on a public contract). Example branch:
+`lab-02-api-contract` (`Agent.enabled` → `is_enabled`, POST `201` → `200`).
 
 | Run | Skills | Expected |
 |---|---|---|
-| B1 | `api-contract-breaking-change` **not linked** or link **disabled** | General Reviewer may miss or under-rank the break; no Skills block from this skill. |
-| B2 | skill linked, globally enabled, link **enabled** | Breaking change called out (typically CRITICAL); Skills block present with `### api-contract-breaking-change`; `skills.loaded` in the live log; `tokens_in` higher than B1. |
+| B1 | `api-contract-breaking-change` **not linked** or link **disabled** | May still mention a rename (base prompt), but **no** `[API-CONTRACT]` titles and no Skills block. |
+| B2 | skill linked, globally enabled, link **enabled** | At least one CRITICAL titled `[API-CONTRACT] …`; ideally also cross-package drift if only the server vendor copy changed; Skills block + `skills.loaded`; higher `tokens_in`. |
 
 **Expected finding (B2, illustrative):**
 
-- CRITICAL: renamed/removed response field (or status/nullability change) breaks
-  existing clients — cite the route/schema line and old vs new contract.
+- CRITICAL: `[API-CONTRACT] Agent.enabled → is_enabled breaks existing clients`
+- CRITICAL: `[API-CONTRACT] Cross-package drift: Agent.enabled server vs client`
+  (when client vendor still has `enabled`)
 
 ---
 
@@ -61,8 +84,10 @@ For the **enabled** run:
 3. Each PromptBlock shows `~N tokens` (`ceil(text.length / 4)`).
 4. `stats.tokens_in` is higher than the disabled run by approximately the Skills
    block token estimate.
+5. Finding titles include the canary prefix for that skill.
 
 For the **disabled** run:
 
 1. No Skills block in Prompt assembly (slot `null`).
-2. No `skills.loaded` event with those skill names (skills were not injected).
+2. No `skills.loaded` event with those skill names.
+3. No (or near-zero) canary-prefixed titles.

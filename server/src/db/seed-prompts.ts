@@ -377,42 +377,82 @@ empty findings list; NEVER approve while reporting a CRITICAL. No findings ⇒ a
 
 export const TEST_COVERAGE_NUDGE_BODY = `# test-coverage-nudge
 
-When reviewing tests, insist on branch coverage for every control-flow change in the PR.
+Insist on branch coverage for every control-flow change in the PR.
+
+## Lab canary (MUST)
+
+Every finding from this skill MUST use a title starting with:
+
+\`[COVERAGE]\`
+
+Example: \`[COVERAGE] empty-string limit path untested — only happy-path parse covered\`
+
+Without the prefix the finding does not count as skill-driven.
 
 ## Rules
-- For each new or changed \`if\` / \`else\` / \`switch\` / early \`return\` / catch path in production code, require at least one test that enters that path.
-- Happy-path-only suites are a finding: name the uncovered branch and the input that would exercise it.
-- Prefer behavioural assertions (status, returned shape, side effect) over "was called" spy counts alone.
+- For each new or changed \`if\` / \`else\` / \`switch\` / early \`return\` / catch
+  in production code, require at least one test that **enters that path**.
+- Happy-path-only suites are always a finding: name the uncovered branch and
+  the exact input that would exercise it.
+- Prefer behavioural assertions (status, returned shape, side effect) over
+  spy "was called" counts alone.
 
-## Severity guidance
-- Untested branch that can ship a production defect → CRITICAL if no other test would catch it; otherwise WARNING.
-- Missing assertion on an already-invoked path → SUGGESTION.`;
+## Severity
+- Untested branch that can ship a production defect → CRITICAL if nothing else
+  would catch it; otherwise WARNING.
+- Missing assertion on an already-invoked path → SUGGESTION.
+
+## Verdict
+At least one \`[COVERAGE]\` WARNING/CRITICAL on a new branch ⇒ do not \`approve\`.
+`;
 
 export const TEST_CORNER_CASES_BODY = `# test-corner-cases
 
 Rubric for corner-case coverage in PR tests.
 
-## Always ask
+## Lab canary (MUST)
+
+Every finding from this skill MUST use a title starting with:
+
+\`[CORNER]\`
+
+Example: \`[CORNER] invalid limit (<1) throw path has no test\`
+
+## Always ask (fail closed — if production adds the path, the test must hit it)
 1. Empty / nullish / zero / max-boundary inputs — asserted?
 2. Error and not-found paths — asserted with the real status/body?
-3. Async rejection / abort — covered when the production code adds them?
+3. Async rejection / abort — covered when production code adds them?
 4. Duplicate / concurrent callers — covered when the code claims safety?
+
+If production introduces any of (1)–(4) and the suite only asserts the success
+path, emit a \`[CORNER]\` finding even when a generic "add more tests" comment
+would feel enough.
 
 ## Report format
 - Title names the missing case (e.g. "empty items[] returns 200 with []").
 - Rationale cites the production branch and the missing test file/line.
-- Suggest one concrete test case, not a vague "add more tests".`;
+- Suggest **one** concrete test case (input + expected), not "add more tests".
+`;
 
 export const PR_QUALITY_RUBRIC_BODY = `# pr-quality-rubric
 
-Lightweight rubric for overall PR test + review quality (used by Test Quality Reviewer).
+Lightweight pass/fail rubric for PR test quality (Test Quality Reviewer).
+
+## Lab canary (MUST)
+
+Findings from this skill MUST start with:
+
+\`[PR-QUALITY]\`
+
+Use sparingly — only when coverage/corner skills do not already cover the gap.
 
 ## Pass bar
 - Diff has tests for every risky behavioural change, or a clear reason why not.
 - Findings are distinct, grounded in the diff, and severity-honest.
-- No padding toward a finding count; empty list is fine when coverage is solid.
+- Empty findings list is fine when coverage is solid.
 
-## Fail signals
+## Fail signals → \`[PR-QUALITY]\`
 - New logic without any test touch.
 - Tests that mock away the behaviour under test.
-- Flaky sources (uncontrolled time/random/order) introduced without a fix.`;
+- Flaky sources (uncontrolled time/random/order) introduced without a fix.
+`;

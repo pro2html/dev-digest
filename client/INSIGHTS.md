@@ -63,3 +63,23 @@ entry short (what happened, what to do instead).
 **Evidence:** `SkillsTab` drag-over stderr during `SkillsTab.test.tsx`; fixed in `client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/styles.ts`.
 
 **Action:** Prefer longhand border properties whenever a state style will override one side of the border.
+
+## 2026-08-03 — Pattern
+
+**Insight:** `useConventionSkillDraft` is a `useMutation` (not `useQuery`) even though it only fetches data, because its input is a variable-length array of IDs passed as a request body. This matches the codebase convention of never stuffing arrays into query-string parameters.
+
+**Why it matters:** Using `useQuery` with an array key would work technically but requires serializing IDs into a URL (which has length limits, cache-key instability, and violates the existing pattern). Treating it as a mutation avoids stale-cache issues and aligns with how other "fetch with complex input" hooks work in this codebase.
+
+**Evidence:** `client/src/lib/hooks/conventions.ts:55-61` (`useConventionSkillDraft` as mutation with body `{ ids }`), spec §7.6 ("mutation rather than a query because the id list is a body").
+
+**Action:** When a hook needs to fetch data using a payload that doesn't fit in a clean query key (arrays, nested objects), use `useMutation` + explicit body rather than forcing it into `useQuery` with a serialized key.
+
+## 2026-08-06 — Recurring Error & Fix
+
+**Insight:** On Conventions cards, clicking the active **Accepted** button must PATCH `status: "pending"` (unaccept), not `"rejected"`. Reject is a separate ghost action. Also, `@devdigest/ui` `IconName` exposes the pencil as `"Edit"` (aliased to lucide `Pencil`) — `"Pencil"` fails typecheck even though `Icon.Edit` renders a pencil.
+
+**Why it matters:** Wiring Accepted → reject silently corrupts the selection model ("Accepted is the selection") and disables Create skill after a double-click. Using `icon="Pencil"` on `IconBtn`/`Button` is a compile error.
+
+**Evidence:** Spec §7.3; `client/src/vendor/ui/icons.tsx` (`Edit: Pencil`); fixed in `ConventionCard.tsx` via separate `onAccept` / `onUnaccept` / `onReject`.
+
+**Action:** Treat Accept as a toggle (accepted ↔ pending); keep Reject distinct. Prefer `icon="Edit"` for pencil affordances.

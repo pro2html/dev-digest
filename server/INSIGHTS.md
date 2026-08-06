@@ -73,3 +73,43 @@ entry short (what happened, what to do instead).
 **Evidence:** `server/src/db/seed.ts` (insert into `skill_versions` with `onConflictDoNothing` after skill upsert); `SkillsRepository.insert` always calls `snapshotVersion` for API-created skills.
 
 **Action:** When inserting skills outside the repository (seed/scripts), also snapshot `skill_versions` for the current version.
+
+## 2026-08-03 — Decision
+
+**Insight:** Convention dedup uses a stored `rule_hash` column (`md5(lower(rule))`) with a standard `uniqueIndex('conventions_repo_rule_uq').on(repoId, ruleHash)` rather than a PostgreSQL expression index `ON (repo_id, md5(lower(rule)))`.
+
+**Why it matters:** Drizzle ORM's schema builder does not support expression-based unique indexes — only column references in `.on(...)`. Using a computed column keeps migration generation fully automatic via `drizzle-kit generate` and avoids hand-written SQL migrations that drift from the schema source of truth.
+
+**Evidence:** `server/src/db/schema/knowledge.ts:58-61` (uniqueIndex on columns), `server/src/modules/conventions/helpers.ts:12-14` (`ruleHash()` function).
+
+**Action:** When dedup needs a computed key in Drizzle, store the hash in a dedicated column rather than using a Postgres expression index — keeps `drizzle-kit generate` working without manual SQL patches.
+
+## 2026-08-03 — Pattern
+
+**Insight:** When `repoIntel.getConventionSamples()` returns `[]` (repo not indexed), the sampler falls back to `walkClone` + junk filter + size sort, sets `degraded: true`, and the API response propagates `index_state: null`. The client renders a "repo not indexed" hint in that case.
+
+**Why it matters:** A naive implementation would treat empty samples as "no conventions possible" and stop. The fallback walk gives usable (if lower-quality) results immediately, while the UI hint tells the user how to improve them — without requiring repo-intel indexing as a hard prerequisite.
+
+**Evidence:** `server/src/modules/conventions/sampler.ts:85-88` (degraded path + `fallbackCodePaths`), `client/src/app/repos/[repoId]/conventions/_components/ConventionsView/ConventionsView.tsx:73,115-119` (notIndexed hint).
+
+**Action:** Any feature depending on repo-intel data should support a degraded path (not hard-fail) and surface a user-actionable hint for improving quality.
+
+## 2026-08-03 — Context
+
+**Insight:** The `conventions` table in `0000_init.sql` was a bare-minimum placeholder (id, workspace_id, repo_id, rule, evidence_path, evidence_snippet, confidence, accepted). Implementing the actual feature required adding 9 new columns + 2 indexes + 1 FK via a separate migration (`0013`). The "empty tables for future lessons" convention (per `server/AGENTS.md`) means initial schemas are stubs — a working migration is always needed before the feature is functional.
+
+**Why it matters:** Assuming the table already has the correct shape skips the migration step, causing runtime errors on `INSERT` (missing NOT NULL columns) or silent data loss (missing indexes).
+
+**Evidence:** `server/src/db/migrations/0000_init.sql:96-105` (original 8-column stub), `server/src/db/migrations/0013_bizarre_quasar.sql` (the real migration adding `rule_hash`, `category`, `status`, etc.).
+
+**Action:** When implementing a feature that uses a pre-existing stub table, always run `pnpm db:generate` after updating the Drizzle schema — don't assume the table is already correct.
+
+## 2026-08-06 — Mistake
+
+**Insight:** `runLog.info(msg, data)` accepts a structured `data` payload, but the Live Log UI and persisted `RunLogLine` only keep/render `msg`. Passing `{ count, names }` as `data` for `skills.loaded` produced a bare `skills.loaded` line with no skill names in the UI.
+
+**Why it matters:** Spec acceptance ("live log shows which skills were pulled in") looked done on the server side while the user-visible log still hid the names. Same trap for any future run-log event that puts details only in `data`.
+
+**Evidence:** `RunLogger.logFor` maps to `{ t, kind, msg }` only; `RunLogLine` has no `data`; `RunStatus` / `LiveLogStream` render `e.msg` / `l.m` only. Fixed by inlining count/names into the message string in `run-executor.ts`.
+
+**Action:** Put user-visible run-log details in `msg` (same style as `Diff ready — N…` / `callers digest: N…`). Use `data` only for stdout/pino mirroring unless you also extend `RunLogLine` + LiveLogStream.

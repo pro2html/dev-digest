@@ -162,17 +162,6 @@ export const CommunitySkill = z.object({
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
-// ---- Conventions ----
-export const ConventionCandidate = z.object({
-  id: z.string(),
-  rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
-  confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
-});
-export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
-
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
 // custom baseURL) — used by the CI runner for cheap models (DeepSeek/GLM/MiniMax).
@@ -253,3 +242,71 @@ export const AgentVersion = z.object({
   created_at: z.string(),
 });
 export type AgentVersion = z.infer<typeof AgentVersion>;
+
+// ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'naming',
+  'error_handling',
+  'async',
+  'structure',
+  'imports',
+  'api_contract',
+  'testing',
+  'logging',
+  'types',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+export const ConventionCandidate = z.object({
+  id: z.string(),
+  repo_id: z.string(),
+  category: ConventionCategory,
+  rule: z.string(),
+  applies_to: z.string().nullish(),
+  evidence_path: z.string(),
+  evidence_line: z.number().int().nullable(),
+  evidence_snippet: z.string(),
+  confidence: z.number().min(0).max(1),
+  support_count: z.number().int().nullish(),
+  violation_count: z.number().int().nullish(),
+  status: ConventionStatus,
+  edited: z.boolean(),
+  skill_id: z.string().nullish(),
+  created_at: z.string(),
+});
+export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+export const ConventionsScan = z.object({
+  repo_id: z.string(),
+  sampled_files: z.number().int(),
+  proposed: z.number().int(),
+  verified: z.number().int(),
+  dropped: z.record(z.string(), z.number()),
+  provider: Provider,
+  model: z.string(),
+  created_at: z.string(),
+});
+export type ConventionsScan = z.infer<typeof ConventionsScan>;
+
+export const ConventionsListResponse = z.object({
+  candidates: z.array(ConventionCandidate),
+  last_scan: ConventionsScan.nullable(),
+  index_state: z.object({
+    status: z.string(),
+    files_indexed: z.number().int(),
+  }).nullable(),
+});
+export type ConventionsListResponse = z.infer<typeof ConventionsListResponse>;
+
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  evidence_files: z.array(z.string()),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;

@@ -6,7 +6,7 @@ import { FormField, TextInput, SelectInput, Toggle, Button, Badge } from "@devdi
 import type { Skill, SkillType } from "@devdigest/shared";
 import { useUpdateSkill } from "../../../../../../../lib/hooks/skills";
 import { useToast } from "../../../../../../../lib/toast";
-import { SkillBodyEditor, skillSlug } from "../../../../../_components/SkillBodyEditor";
+import { SkillBodyEditor, skillSlug } from "@/components/SkillBodyEditor";
 import { SKILL_TYPE_OPTIONS } from "../../constants";
 import { s } from "./styles";
 

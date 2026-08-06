@@ -15,12 +15,42 @@
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "deselectAll": "Deselect all",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "sampleSummary": "Detected from {n} sample files · last scan {relative}",
+    "notIndexedHint": "This repository is not indexed. Index it in Project Context for better results.",
+    "rejectedGroup": "Rejected ({n})",
+    "createSkill": "Create skill",
+    "createSkillDisabled": "Accept at least one convention"
   },
   "card": {
     "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
     "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "acceptAsSkill": "Accept as Skill",
+    "reject": "Reject",
+    "edit": "Edit",
+    "edited": "Edited",
+    "support": "{support} files follow · {violations} violate",
+    "confidenceTitle": "Model-reported confidence"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "subtitle": "Merged from {n} accepted conventions",
+    "banner": "Merged from {n} accepted conventions in {repo}. Everything below is editable before you save.",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "enabled": "Enabled",
+    "enabledCaption": "Whether this block is added to agents' prompts.",
+    "linkAgent": "Link to agent",
+    "linkAgentPlaceholder": "Optional — choose an agent",
+    "skillBody": "Skill body",
+    "loadingDraft": "Loading draft…",
+    "savedAs": "Saved as v1 · added to Skills Lab",
+    "create": "Create skill",
+    "cancel": "Cancel"
   }
 }

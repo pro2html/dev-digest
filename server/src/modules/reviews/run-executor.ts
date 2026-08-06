@@ -207,11 +207,11 @@ export class ReviewRunExecutor {
       skillsAssembly = skillBodiesToAssembly(skillBodies);
       // Only emit when skills actually enter the prompt — disabled/empty must
       // leave no Skills block and no skills.loaded line in the live log.
+      // Put count/names in `msg` (not `data`): LiveLogStream and persisted
+      // RunLogLine only render/store the message string.
       if (skillBodies.length > 0) {
-        runLog.info('skills.loaded', {
-          count: skillBodies.length,
-          names: skillRows.map((s) => s.name),
-        });
+        const names = skillRows.map((s) => s.name).join(', ');
+        runLog.info(`skills.loaded — ${skillBodies.length} skill(s): ${names}`);
       }
 
       // ---- Engine: assemble → single-pass → grounding -----------------------

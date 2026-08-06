@@ -8,7 +8,7 @@ import { Button, Drawer, FormField, TextInput, SelectInput, Markdown } from "@de
 import type { SkillType } from "@devdigest/shared";
 import { useImportSkill } from "../../../../../../lib/hooks/skills";
 import { useToast } from "../../../../../../lib/toast";
-import { firstHeading, isMarkdownFile, readFileText } from "../../../SkillBodyEditor/helpers";
+import { firstHeading, isMarkdownFile, readFileText } from "@/components/SkillBodyEditor";
 import { DRAWER_WIDTH, SKILL_TYPE_OPTIONS } from "./constants";
 import { s } from "./styles";
 

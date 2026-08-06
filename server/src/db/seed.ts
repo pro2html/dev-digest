@@ -294,6 +294,23 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
           version: 1,
         })
         .returning();
+    } else if (row.body !== sk.body) {
+      // Lab / course re-seed: refresh body when seed-prompts.ts was strengthened
+      // (seed previously left stale bodies forever after first insert).
+      const nextVersion = row.version + 1;
+      [row] = await db
+        .update(t.skills)
+        .set({
+          body: sk.body,
+          description: sk.description,
+          version: nextVersion,
+        })
+        .where(eq(t.skills.id, row.id))
+        .returning();
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: nextVersion, body: sk.body })
+        .onConflictDoNothing();
     }
     // Mirror SkillsRepository.insert: ensure a v1 body snapshot exists (also
     // backfills skills that were seeded before this snapshot was added).
