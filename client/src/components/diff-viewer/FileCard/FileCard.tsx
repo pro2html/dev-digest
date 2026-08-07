@@ -1,6 +1,7 @@
 /* FileCard — one collapsible file in the diff: header (path, +/- stat, comment
    count / findings badge) and, when open, its parsed lines plus any outdated
-   comments. Optional Smart Diff finding markers + scroll-to-line. */
+   comments. Review finding word-links deep-link to Agent runs; left stripes
+   mark every covered line. */
 "use client";
 
 import React from "react";
@@ -17,7 +18,7 @@ import {
   type CommentThread,
   type DiffCommentApi,
 } from "../comments";
-import { markersByLine, type DiffFindingMarker } from "../findings";
+import { overlayFindingsOnLines, type DiffFindingMarker } from "../findings";
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
@@ -33,31 +34,24 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-function scrollToFindingLine(path: string, line: number) {
-  const nodes = document.querySelectorAll<HTMLElement>("[data-path][data-line]");
-  for (const el of nodes) {
-    if (el.dataset.path === path && el.dataset.line === String(line)) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-  }
-}
-
 export function FileCard({
   file,
   commenting,
   findings,
   defaultOpen,
   findingsBadgeLabel,
+  onOpenFinding,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
-  /** Smart Diff finding markers (line + severity). */
+  /** Review finding markers (start/end + severity + optional id). */
   findings?: DiffFindingMarker[];
   /** Override initial open state (Smart Diff roles / findings). */
   defaultOpen?: boolean;
   /** i18n label for the findings badge, e.g. "3 findings". */
   findingsBadgeLabel?: string;
+  /** Open Agent runs tab and scroll to this finding. */
+  onOpenFinding?: (findingId: string) => void;
 }) {
   const t = useTranslations("shell");
   const autoExpand =
@@ -66,11 +60,12 @@ export function FileCard({
     defaultOpen !== undefined ? defaultOpen : autoExpand,
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
-  const byLine = React.useMemo(
-    () => markersByLine(findings ?? []),
-    [findings],
+  const overlays = React.useMemo(
+    () => overlayFindingsOnLines(lines, findings ?? []),
+    [lines, findings],
   );
   const findingCount = findings?.length ?? 0;
+  const hasBlocker = (findings ?? []).some((f) => f.severity === "CRITICAL");
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -87,29 +82,38 @@ export function FileCard({
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
 
-  const firstFindingLine = findings?.[0]?.line;
+  const firstFinding = findings?.[0];
   const worstSev: Severity | null = React.useMemo(() => {
     if (!findings || findings.length === 0) return null;
     let best: Severity = findings[0]!.severity;
     for (const f of findings) {
-      if (SEV[f.severity] && f.severity === "CRITICAL") return "CRITICAL";
+      if (f.severity === "CRITICAL") return "CRITICAL";
       if (f.severity === "WARNING" && best === "SUGGESTION") best = "WARNING";
     }
     return best;
   }, [findings]);
 
-  const jumpToFindings = (e: React.MouseEvent) => {
+  const jumpToFirstFinding = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const line = firstFindingLine;
+    if (firstFinding?.id && onOpenFinding) {
+      onOpenFinding(firstFinding.id);
+      return;
+    }
+    const line = firstFinding?.line;
     if (line == null) return;
     if (!open) {
       setOpen(true);
-      // Wait for expand before scrolling.
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => scrollToFindingLine(file.path, line));
+        requestAnimationFrame(() => {
+          const nodes = document.querySelectorAll<HTMLElement>("[data-path][data-line]");
+          for (const el of nodes) {
+            if (el.dataset.path === file.path && el.dataset.line === String(line)) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              return;
+            }
+          }
+        });
       });
-    } else {
-      scrollToFindingLine(file.path, line);
     }
   };
 
@@ -121,6 +125,19 @@ export function FileCard({
         <span className="mono" style={s.filePath}>
           {file.path}
         </span>
+        {hasBlocker && (
+          <span
+            title="Has blockers"
+            aria-label="Has blockers"
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: 999,
+              background: "var(--crit)",
+              flexShrink: 0,
+            }}
+          />
+        )}
         <span className="mono tnum" style={s.fileStat}>
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
@@ -128,7 +145,7 @@ export function FileCard({
         {findingCount > 0 && (
           <button
             type="button"
-            onClick={jumpToFindings}
+            onClick={jumpToFirstFinding}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -167,8 +184,7 @@ export function FileCard({
             <div style={s.noDiff}>{t("diffViewer.noDiffText")}</div>
           ) : (
             lines.map((ln, i) => {
-              const sev =
-                ln.newNo != null ? byLine.get(ln.newNo) ?? null : null;
+              const overlay = overlays[i]!;
               return (
                 <CodeLine
                   key={i}
@@ -176,12 +192,9 @@ export function FileCard({
                   path={file.path}
                   threads={threadsForLine(ln, matched)}
                   commenting={commenting}
-                  findingSeverity={sev}
-                  onFindingClick={
-                    ln.newNo != null
-                      ? () => scrollToFindingLine(file.path, ln.newNo!)
-                      : undefined
-                  }
+                  findingMarkers={overlay.links}
+                  stripeSeverity={overlay.stripe}
+                  onOpenFinding={onOpenFinding}
                 />
               );
             })

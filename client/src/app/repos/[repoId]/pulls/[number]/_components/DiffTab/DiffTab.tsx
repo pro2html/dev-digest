@@ -17,9 +17,11 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Open Agent runs and scroll to the finding card. */
+  onOpenFinding?: (findingId: string) => void;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: DiffTabProps) {
   const t = useTranslations("prReview.smartDiff");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -94,9 +96,15 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
           files={files}
           findings={latestFindings}
           commenting={commenting}
+          onOpenFinding={onOpenFinding}
         />
       ) : (
-        <DiffViewer files={files} commenting={commenting} />
+        <DiffViewer
+          files={files}
+          commenting={commenting}
+          findings={latestFindings}
+          onOpenFinding={onOpenFinding}
+        />
       )}
     </section>
   );

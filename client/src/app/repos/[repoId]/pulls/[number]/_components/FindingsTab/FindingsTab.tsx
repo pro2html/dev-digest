@@ -5,7 +5,6 @@ import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
-import { IntentCard } from "../IntentCard";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -22,6 +21,10 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Deep-link from Files changed (`?finding=`). */
+  focusFindingId?: string | null;
+  /** Clear the one-shot deep-link after scroll so later visits open at top. */
+  onFocusFindingConsumed?: () => void;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -38,6 +41,8 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  focusFindingId = null,
+  onFocusFindingConsumed,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -72,12 +77,68 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  // Files changed → finding deep-link: open the owning run accordion + scroll
+  // to `[data-finding-id]` once, then clear `?finding=` (one-shot).
+  const [findingTarget, setFindingTarget] = React.useState<{
+    findingId: string;
+    runId: string | null;
+    n: number;
+  } | null>(null);
+  const consumedFindingRef = React.useRef<string | null>(null);
+
+  // Ordinary Agent runs visit (no deep-link): start at the top of the page.
+  React.useEffect(() => {
+    if (focusFindingId) return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    // mount-only — do not re-scroll when the deep-link param is cleared after consume
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    if (!focusFindingId) return;
+    if (consumedFindingRef.current === focusFindingId) return;
+    const review = runs.find((r) => r.findings.some((f) => f.id === focusFindingId));
+    setFindingTarget((p) => ({
+      findingId: focusFindingId,
+      runId: review?.run_id ?? null,
+      n: (p?.n ?? 0) + 1,
+    }));
+    if (review?.run_id) {
+      setTarget((p) => ({ runId: review.run_id!, n: (p?.n ?? 0) + 1 }));
+    }
+  }, [focusFindingId, runs]);
+
+  React.useEffect(() => {
+    if (!findingTarget) return;
+    const id = findingTarget.findingId;
+    const finish = () => {
+      if (consumedFindingRef.current === id) return;
+      consumedFindingRef.current = id;
+      onFocusFindingConsumed?.();
+    };
+    const tryScroll = () => {
+      const el = document.querySelector<HTMLElement>(`[data-finding-id="${CSS.escape(id)}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        finish();
+        return true;
+      }
+      return false;
+    };
+    // Accordion may need a paint after open.
+    if (tryScroll()) return;
+    const t1 = window.setTimeout(tryScroll, 50);
+    const t2 = window.setTimeout(() => {
+      if (!tryScroll()) finish(); // clear param even if the card never appeared
+    }, 200);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [findingTarget, onFocusFindingConsumed]);
+
   return (
     <section>
-      <div style={s.intentAtop}>
-        <IntentCard prId={prId} compact />
-      </div>
-
       {liveRunIds.length > 0 && (
         <div style={s.liveRunSection}>
           <SectionLabel
@@ -167,11 +228,12 @@ export function FindingsTab({
             key={review.id}
             review={review}
             prId={prId}
-            defaultOpen={i === 0}
+            defaultOpen={i === 0 || (!!focusFindingId && review.findings.some((f) => f.id === focusFindingId))}
             repoFullName={repoFullName}
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            focusFindingId={findingTarget?.findingId ?? focusFindingId ?? null}
           />
         ))
       )}

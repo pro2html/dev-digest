@@ -45,7 +45,4 @@ export const s = {
     display: "flex",
     gap: 8,
   } satisfies CSSProperties,
-  intentAtop: {
-    marginBottom: 18,
-  } satisfies CSSProperties,
 } as const;

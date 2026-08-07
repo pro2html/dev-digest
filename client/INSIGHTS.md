@@ -113,3 +113,13 @@ entry short (what happened, what to do instead).
 **Evidence:** Architecture review A1–A3 on Smart Diff; `client/src/components/diff-viewer/index.ts`; `SmartDiffViewer/helpers.ts` mirrors `server/.../smart-diff/classifier.ts` `normalizePath`.
 
 **Action:** Extend the diff-viewer barrel when a route needs more of its surface; keep path-identity helpers pure and colocated (or shared only if a plan explicitly allows touching contracts).
+
+## 2026-08-07 — Pattern
+
+**Insight:** Inline finding affordances on Files changed are **word-links** (`suggestion` / `warning` / `blocker`) on the right of the finding's first line — not severity dots. Click sets `?tab=findings&finding=<id>` and scrolls to `[data-finding-id]`. Multiple findings on the same line must all render (`markersByLine` keeps an array; do not collapse to worst-only).
+
+**Why it matters:** Collapsing markers hid co-located findings; scrolling only inside the diff missed the mentor UX (jump to Agent runs). CRITICAL is labeled **blocker** in the diff (mockup), while `SEV.CRITICAL.label` stays "Critical" elsewhere.
+
+**Evidence:** `diff-viewer/findings.ts` (`findingLinkLabel`, `markersByLine`); `CodeLine.tsx`; `page.tsx` `openFinding`; `FindingsTab` / `ReviewRunAccordion` deep-link open + scroll.
+
+**Action:** Always pass `id` on `DiffFindingMarker` from review records; wire `onOpenFinding` from the PR page through DiffTab / SmartDiffViewer / DiffViewer.

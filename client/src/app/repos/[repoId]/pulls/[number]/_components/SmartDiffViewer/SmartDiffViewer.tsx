@@ -39,12 +39,14 @@ function GroupBlock({
   prByPath,
   findingMap,
   commenting,
+  onOpenFinding,
 }: {
   role: SmartDiffRole;
   files: SmartDiffFile[];
   prByPath: Map<string, PrFile>;
   findingMap: Map<string, DiffFindingMarker[]>;
   commenting?: DiffCommentApi;
+  onOpenFinding?: (findingId: string) => void;
 }) {
   const t = useTranslations("prReview.smartDiff");
   const IconComp = Icon[ROLE_ICON[role]];
@@ -79,6 +81,7 @@ function GroupBlock({
               findingsBadgeLabel={
                 markers.length > 0 ? t("findingsBadge", { count: markers.length }) : undefined
               }
+              onOpenFinding={onOpenFinding}
             />
           );
         })}
@@ -115,9 +118,16 @@ interface SmartDiffViewerProps {
   /** Latest-review findings for severity join (file + start_line + severity). */
   findings: FindingRecord[];
   commenting?: DiffCommentApi;
+  onOpenFinding?: (findingId: string) => void;
 }
 
-export function SmartDiffViewer({ prId, files, findings, commenting }: SmartDiffViewerProps) {
+export function SmartDiffViewer({
+  prId,
+  files,
+  findings,
+  commenting,
+  onOpenFinding,
+}: SmartDiffViewerProps) {
   const t = useTranslations("prReview.smartDiff");
   const { data, isLoading, isError, refetch } = useSmartDiff(prId);
 
@@ -158,6 +168,7 @@ export function SmartDiffViewer({ prId, files, findings, commenting }: SmartDiff
           prByPath={prByPath}
           findingMap={findingMap}
           commenting={commenting}
+          onOpenFinding={onOpenFinding}
         />
       ))}
     </div>

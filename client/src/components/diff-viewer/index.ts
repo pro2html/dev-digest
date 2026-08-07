@@ -4,5 +4,13 @@ export { DiffViewer } from "./DiffViewer";
 export { FileCard } from "./FileCard";
 export { AUTO_EXPAND_MAX_LINES } from "./constants";
 export type { DiffCommentApi } from "./comments";
-export type { DiffFindingMarker } from "./findings";
-export { markersByLine } from "./findings";
+export type { DiffFindingMarker, LineFindingOverlay } from "./findings";
+export {
+  markersByLine,
+  normalizeDiffPath,
+  findingLinkLabel,
+  buildFindingMarkersByPath,
+  overlayFindingsOnLines,
+  lineIntersectsFinding,
+  lineIsFindingStart,
+} from "./findings";
