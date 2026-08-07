@@ -4,6 +4,10 @@ import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
+import {
+  resolveSkillBodiesForPrompt,
+  skillBodiesToAssembly,
+} from '../skills/helpers.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
@@ -153,6 +157,9 @@ export class ReviewRunExecutor {
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
+    // Skills assembly string for the emergency trace path (set once bodies load).
+    let skillsAssembly: string | null = null;
+
     try {
       // Resolve the agent's LLM provider. (container.llm throws if the provider
       // key is missing — caught below and persisted as a failed run.)
@@ -184,6 +191,29 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills: only globally-enabled + link-enabled bodies, ordered. Prefix
+      // each with ### <name> so the prompt_assembly.skills block is readable
+      // per skill. Omit the slot entirely when empty (reviewer-core convention).
+      const skillRows = await this.container.skillsRepo.bodiesForAgent(agent.id);
+      const skillBodies = resolveSkillBodiesForPrompt(
+        skillRows.map((s, order) => ({
+          name: s.name,
+          body: s.body,
+          skillEnabled: true,
+          linkEnabled: true,
+          order,
+        })),
+      );
+      skillsAssembly = skillBodiesToAssembly(skillBodies);
+      // Only emit when skills actually enter the prompt — disabled/empty must
+      // leave no Skills block and no skills.loaded line in the live log.
+      // Put count/names in `msg` (not `data`): LiveLogStream and persisted
+      // RunLogLine only render/store the message string.
+      if (skillBodies.length > 0) {
+        const names = skillRows.map((s) => s.name).join(', ');
+        runLog.info(`skills.loaded — ${skillBodies.length} skill(s): ${names}`);
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -201,6 +231,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Linked skill bodies — omit when empty so the Skills section is absent.
+        ...(skillBodies.length ? { skills: skillBodies } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -316,7 +348,10 @@ export class ReviewRunExecutor {
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(
+          runId,
+          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, skillsAssembly),
+        )
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -413,7 +448,9 @@ export class ReviewRunExecutor {
   /**
    * A minimal RunTrace whose `log` is the run's full SSE buffer — persisted on
    * failure/cancel (and pre-work failures) so the events (and WHY it failed)
-   * survive a reload, not just the in-memory stream.
+   * survive a reload, not just the in-memory stream. `skills` mirrors the slot
+   * that would have gone into prompt_assembly so a mid-run failure doesn't
+   * drop the Skills block from the trace.
    */
   private traceFromBuffer(
     runId: string,
@@ -421,6 +458,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    skills: string | null = null,
   ): RunTrace {
     return {
       config: {
@@ -432,7 +470,7 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: { system: agent.systemPrompt, skills, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

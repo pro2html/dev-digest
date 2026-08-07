@@ -42,10 +42,11 @@ export interface UpdateAgent {
   enabled?: boolean;
 }
 
-/** A skill linked to an agent (with its order), joined from agent_skills. */
+/** A skill linked to an agent (with its order/enabled), joined from agent_skills. */
 export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
   order: number;
+  enabled: boolean;
 }
 
 export class AgentsRepository {
@@ -191,12 +192,16 @@ export class AgentsRepository {
   /** Skills linked to an agent, in `order` ascending. */
   async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
     const rows = await this.db
-      .select({ skill: t.skills, order: t.agentSkills.order })
+      .select({
+        skill: t.skills,
+        order: t.agentSkills.order,
+        enabled: t.agentSkills.enabled,
+      })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
       .where(eq(t.agentSkills.agentId, agentId))
       .orderBy(asc(t.agentSkills.order));
-    return rows.map((r) => ({ skill: r.skill, order: r.order }));
+    return rows.map((r) => ({ skill: r.skill, order: r.order, enabled: r.enabled }));
   }
 
   async skillIdsForAgent(agentId: string): Promise<string[]> {
@@ -215,22 +220,52 @@ export class AgentsRepository {
       });
   }
 
-  async unlinkSkill(agentId: string, skillId: string): Promise<void> {
-    await this.db
-      .delete(t.agentSkills)
-      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
+  /**
+   * Replace the full set of linked skills for an agent. Each entry supplies
+   * skillId + order + enabled. Skills not in the list are unlinked. Does NOT
+   * bump agents.version. Delete + insert run in one transaction.
+   */
+  async setSkills(
+    agentId: string,
+    links: { skillId: string; order: number; enabled: boolean }[],
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+      if (links.length === 0) return;
+      await tx.insert(t.agentSkills).values(
+        links.map((l) => ({
+          agentId,
+          skillId: l.skillId,
+          order: l.order,
+          enabled: l.enabled,
+        })),
+      );
+    });
   }
 
   /**
-   * Replace the full set of linked skills for an agent with `skillIds`, assigning
-   * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
+   * Set `enabled` on an existing agent↔skill link. Returns false when the link
+   * (or agent/skill) does not exist. Does NOT bump agents.version.
    */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+  async setSkillLinkEnabled(
+    agentId: string,
+    skillId: string,
+    enabled: boolean,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(t.agentSkills)
+      .set({ enabled })
+      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)))
+      .returning({ skillId: t.agentSkills.skillId });
+    return rows.length > 0;
+  }
+
+  /** Unlink a skill from an agent. Returns false when no such link existed. */
+  async unlinkSkill(agentId: string, skillId: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(t.agentSkills)
+      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)))
+      .returning({ skillId: t.agentSkills.skillId });
+    return rows.length > 0;
   }
 }

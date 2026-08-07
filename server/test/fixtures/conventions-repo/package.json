@@ -1,0 +1,12 @@
+{
+  "name": "test-repo",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0"
+  }
+}

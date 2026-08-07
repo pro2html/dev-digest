@@ -1,7 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
-  AgentSkillLink,
+  AgentSkillLinkView,
   AgentVersion,
   CiFailOn,
   ModelInfo,
@@ -46,6 +46,12 @@ export interface UpdateAgentInput {
   ci_fail_on?: CiFailOn;
   repo_intel?: boolean;
   enabled?: boolean;
+}
+
+export interface SkillLinkInput {
+  skill_id: string;
+  order: number;
+  enabled: boolean;
 }
 
 export class AgentsService {
@@ -135,25 +141,58 @@ export class AgentsService {
     return row ? toAgentVersionDto(row) : undefined;
   }
 
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
-  async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
+  /**
+   * Linked skills for an agent as AgentSkillLinkView[] (ordered) — includes
+   * skill name/type/global enabled so the Skills tab needs no N+1.
+   */
+  async skillLinks(agentId: string): Promise<AgentSkillLinkView[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({
+      agent_id: agentId,
+      skill_id: l.skill.id,
+      order: l.order,
+      enabled: l.enabled,
+      name: l.skill.name,
+      type: l.skill.type as AgentSkillLinkView['type'],
+      skill_enabled: l.skill.enabled,
+    }));
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Set / reorder the agent's linked skills (canonical form with enabled).
+   * Does not bump agents.version. Returns the resulting ordered views.
+   * Returns `false` when any skill_id is not in this workspace (tenancy).
    */
   async setSkills(
     workspaceId: string,
     agentId: string,
-    skillIds: string[],
-  ): Promise<AgentSkillLink[] | undefined> {
+    links: SkillLinkInput[],
+  ): Promise<AgentSkillLinkView[] | undefined | false> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
+    if (!(await this.skillsBelongToWorkspace(workspaceId, links.map((l) => l.skill_id)))) {
+      return false;
+    }
+    await this.repo.setSkills(
+      agentId,
+      links.map((l) => ({ skillId: l.skill_id, order: l.order, enabled: l.enabled })),
+    );
     return this.skillLinks(agentId);
+  }
+
+  /**
+   * Compatibility: replace links from an ordered id list (enabled defaults true).
+   */
+  async setSkillsByIds(
+    workspaceId: string,
+    agentId: string,
+    skillIds: string[],
+  ): Promise<AgentSkillLinkView[] | undefined | false> {
+    return this.setSkills(
+      workspaceId,
+      agentId,
+      skillIds.map((skill_id, order) => ({ skill_id, order, enabled: true })),
+    );
   }
 
   /** Link a single skill (append or set order) — additive to existing links. */
@@ -162,12 +201,59 @@ export class AgentsService {
     agentId: string,
     skillId: string,
     order?: number,
-  ): Promise<AgentSkillLink[] | undefined> {
+  ): Promise<AgentSkillLinkView[] | undefined | false> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    if (!(await this.skillsBelongToWorkspace(workspaceId, [skillId]))) return false;
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
+    return this.skillLinks(agentId);
+  }
+
+  /** True iff every skillId exists in this workspace (empty list → true). */
+  private async skillsBelongToWorkspace(
+    workspaceId: string,
+    skillIds: string[],
+  ): Promise<boolean> {
+    const unique = [...new Set(skillIds)];
+    for (const id of unique) {
+      const skill = await this.container.skillsRepo.getById(workspaceId, id);
+      if (!skill) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Toggle `enabled` on an agent↔skill link. Returns undefined when the agent
+   * isn't in this workspace; false when the link doesn't exist.
+   */
+  async setSkillLinkEnabled(
+    workspaceId: string,
+    agentId: string,
+    skillId: string,
+    enabled: boolean,
+  ): Promise<AgentSkillLinkView[] | undefined | false> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    const ok = await this.repo.setSkillLinkEnabled(agentId, skillId, enabled);
+    if (!ok) return false;
+    return this.skillLinks(agentId);
+  }
+
+  /**
+   * Unlink a skill from an agent. Returns undefined when the agent isn't in
+   * this workspace; false when the link doesn't exist.
+   */
+  async unlinkSkill(
+    workspaceId: string,
+    agentId: string,
+    skillId: string,
+  ): Promise<AgentSkillLinkView[] | undefined | false> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    const ok = await this.repo.unlinkSkill(agentId, skillId);
+    if (!ok) return false;
     return this.skillLinks(agentId);
   }
 

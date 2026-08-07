@@ -13,11 +13,15 @@ export function Donut({
   size = 130,
   stroke = 22,
   valuePrefix = "$",
+  formatValue = (v) => v.toFixed(2),
 }: {
   segments: DonutSegment[];
   size?: number;
   stroke?: number;
+  /** Prefix before each legend value (default "$" for the showcase currency look). */
   valuePrefix?: string;
+  /** Format the numeric legend value. Default keeps two-decimal currency display. */
+  formatValue?: (value: number) => string;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
@@ -47,7 +51,7 @@ export function Donut({
             <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
             <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
               {valuePrefix}
-              {s.value.toFixed(2)}
+              {formatValue(s.value)}
             </span>
           </div>
         ))}

@@ -9,6 +9,15 @@ import { ToastProvider } from "../../../../../lib/toast";
 vi.mock("../../../../../lib/hooks/agents", () => ({
   useUpdateAgent: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, data: undefined }),
   useProviderModels: () => ({ data: [{ id: "gpt-4.1", provider: "openai" }] }),
+  useAgentSkills: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useToggleAgentSkill: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetAgentSkills: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnlinkAgentSkill: () => ({ mutate: vi.fn(), isPending: false }),
+  useLinkAgentSkill: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("../../../../../lib/hooks/skills", () => ({
+  useSkills: () => ({ data: [] }),
 }));
 
 import { AgentEditor } from "./AgentEditor";

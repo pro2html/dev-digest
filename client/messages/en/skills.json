@@ -3,9 +3,12 @@
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
     "heading": "Skills",
+    "subtitle": "Reusable markdown instruction blocks linked to review agents.",
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
+    "createSkill": "Create skill",
+    "importFromFile": "Import from file",
     "menu": {
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
@@ -13,7 +16,7 @@
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
+      "body": "Create a skill from scratch or import one from a markdown file.",
       "cta": "Import from file"
     },
     "selectPrompt": {
@@ -49,7 +52,12 @@
     "bodyPlaceholder": "# Rule\nDescribe the rule…",
     "importing": "Importing…",
     "import": "Import skill",
-    "success": "Imported \"{name}\" (stored as untrusted data)."
+    "success": "Imported \"{name}\" (stored as untrusted data).",
+    "onlyMd": "Only .md files are supported",
+    "pickFile": "Choose a .md file",
+    "trustWarning": "Imported skills are untrusted instructions that will be injected into agent prompts. The skill is created disabled until you vet and enable it.",
+    "typeLabel": "Type",
+    "previewTitle": "Preview"
   },
   "url": {
     "label": "Skill URL",
@@ -85,7 +93,11 @@
       "extracted": "Extracted",
       "community": "Community",
       "imported_url": "Imported"
-    }
+    },
+    "noDescription": "No description",
+    "metrics": "{agents} agents · —% pull · —% accept",
+    "deleteConfirm": "Delete skill \"{name}\"? This cannot be undone.",
+    "deleteTitle": "Delete skill"
   },
   "preview": {
     "untrustedBadge": "untrusted source",
@@ -97,5 +109,77 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "editor": {
+    "listTitle": "Skills",
+    "add": "Add Skill",
+    "createSkill": "Create skill",
+    "importFromFile": "Import from file",
+    "disabled": "disabled",
+    "runOnEvals": "Run on evals",
+    "runOnEvalsTitle": "Coming soon",
+    "skillFallback": "Skill",
+    "loadErrorTitle": "Couldn’t load this skill",
+    "loadErrorBody": "The skill could not be loaded.",
+    "unsaved": "unsaved",
+    "tokens": "~{count} tokens",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "stats": "Stats",
+      "versions": "Versions"
+    },
+    "config": {
+      "title": "Configuration",
+      "enabled": "Enabled",
+      "name": "Name",
+      "description": "Description",
+      "descriptionHint": "The description is the skill’s interface — agents use it to decide whether to pull this skill into a review.",
+      "type": "Type",
+      "body": "Skill body",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved (v{version})",
+      "savedToast": "Skill saved (v{version})"
+    },
+    "preview": {
+      "heading": "Rendered as the reviewing agent receives it"
+    },
+    "versions": {
+      "title": "Version history",
+      "empty": "No versions yet. Saving a changed body creates the first snapshot.",
+      "loadError": "Could not load versions.",
+      "versionLabel": "v{version}"
+    },
+    "stats": {
+      "title": "Usage stats",
+      "loadError": "Could not load stats.",
+      "usedBy": "USED BY",
+      "pullFrequency": "PULL FREQUENCY",
+      "acceptRate": "ACCEPT RATE",
+      "findings30d": "FINDINGS (30D)",
+      "notTrackedYet": "Not tracked yet",
+      "agentsTitle": "Agents using this skill",
+      "agentsEmpty": "No agents link this skill yet.",
+      "byCategory": "Findings by category",
+      "byCategoryEmpty": "No findings in the last 30 days."
+    }
+  },
+  "create": {
+    "title": "Create skill",
+    "subtitle": "A reusable markdown instruction block you can link to review agents.",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "defaultName": "New Skill",
+    "defaultBody": "# New skill\n\nDescribe the rule the reviewing agent should follow…",
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "test-coverage-nudge",
+      "description": "Description",
+      "descriptionPlaceholder": "What this skill teaches the agent",
+      "type": "Type",
+      "body": "Skill body"
+    }
   }
 }
