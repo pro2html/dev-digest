@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
@@ -8,6 +8,7 @@ import {
   resolveSkillBodiesForPrompt,
   skillBodiesToAssembly,
 } from '../skills/helpers.js';
+import { IntentService } from '../intent/service.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
@@ -109,6 +110,50 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent Layer — ensure derived intent before agent reviews (fail-open).
+    // Classifier uses title/body/files/hunk headers only — never the full diff.
+    let prIntent: Intent | null = null;
+    try {
+      const intentService = new IntentService(this.container);
+      const ensured = await intentService.ensureForReview(workspaceId, pull.id, {
+        info: (obj) => {
+          const o = obj as { msg?: string; body_len?: number; has_issue?: boolean; has_spec?: boolean; files_n?: number; hunk_headers_n?: number; missing?: string[]; quality?: string; provider?: string; model?: string; tokens_in?: number; tokens_out?: number; latency_ms?: number; prId?: string };
+          if (o.msg === 'intent.sources') {
+            runLog.info(
+              `intent.sources — body_len=${o.body_len ?? 0}, has_issue=${Boolean(o.has_issue)}, has_spec=${Boolean(o.has_spec)}, files_n=${o.files_n ?? 0}, hunk_headers_n=${o.hunk_headers_n ?? 0}, quality=${o.quality ?? '?'}, missing=[${(o.missing ?? []).join(',')}]`,
+            );
+          } else if (o.msg === 'intent.classify') {
+            // Distinct Live Log step for classifier LLM (Call 1) vs review (Call 2).
+            runLog.tool(
+              `intent.classify — ${o.provider}/${o.model} (tokens_in=${o.tokens_in ?? 0}, tokens_out=${o.tokens_out ?? 0}, ${o.latency_ms ?? 0}ms)`,
+            );
+          } else if (o.msg === 'intent.persisted') {
+            runLog.info(`intent.persisted — pr ${pull.id}`);
+          } else if (o.msg === 'intent.failed') {
+            runLog.info(`intent.failed — continuing without intent`);
+          }
+        },
+        warn: () => {
+          runLog.info('intent.failed — continuing without intent');
+        },
+      });
+      if (ensured.failed) {
+        runLog.info(`intent.failed — ${ensured.error ?? 'unknown'}; review continues`);
+      } else if (ensured.intent) {
+        prIntent = ensured.intent;
+        if (ensured.derived && ensured.meta) {
+          // sources/classify already logged via callbacks when freshly derived
+        } else {
+          runLog.info('intent.sources — using persisted intent (no re-classify)');
+        }
+        runLog.info('intent.injected — yes');
+      } else {
+        runLog.info('intent.injected — no');
+      }
+    } catch (err) {
+      runLog.info(`intent.failed — ${(err as Error).message}; review continues`);
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -116,7 +161,16 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          prIntent,
+        );
         logger?.info(
           {
             runId,
@@ -148,6 +202,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    prIntent: Intent | null = null,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -236,6 +291,8 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived intent — separate cheap classifier (Call 1); review is Call 2.
+        ...(prIntent ? { intent: prIntent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),

@@ -83,3 +83,13 @@ entry short (what happened, what to do instead).
 **Evidence:** Spec §7.3; `client/src/vendor/ui/icons.tsx` (`Edit: Pencil`); fixed in `ConventionCard.tsx` via separate `onAccept` / `onUnaccept` / `onReject`.
 
 **Action:** Treat Accept as a toggle (accepted ↔ pending); keep Reject distinct. Prefer `icon="Edit"` for pencil affordances.
+
+## 2026-08-07 — Context
+
+**Insight:** Settings Models UI does **not** read `FEATURE_MODELS` from vendored `@devdigest/shared` at runtime — `client/src/lib/feature-models.ts` is a third, client-only mirror (webpack can't resolve shared's `.js` re-exports). Changing `review_intent` defaults in both `vendor/shared/contracts/platform.ts` copies is not enough for the Settings picker defaults.
+
+**Why it matters:** Editing only the shared contracts leaves Settings still advertising `openai`/`gpt-4.1` for Intent until the local mirror is updated.
+
+**Evidence:** Comment in `client/src/lib/feature-models.ts`; Intent Layer default change required three places (server vendor, client vendor, `lib/feature-models.ts`).
+
+**Action:** When changing any `FEATURE_MODELS` default/label, sync server vendor + client vendor **and** `client/src/lib/feature-models.ts` in the same change.

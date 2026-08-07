@@ -44,6 +44,32 @@ Search open sources via WebSearch / WebFetch: official documentation, specs, Git
 - Separately record what you could not find — even if the section is empty, write "none" or list the gaps.
 - Do not invent paths, URLs, or quotations.
 
+## Hand-off to planner (default)
+
+Unless the user explicitly asks for a full deep report, end with a **Research
+brief** suitable for planner/parent (≤ ~400 words):
+
+```markdown
+# Research brief: <topic>
+
+## Must-use facts
+- … (5–8 bullets)
+
+## Key paths / URLs
+- `path` or URL — why
+
+## Open risks / unknowns
+- …
+
+## Skip for planner
+- … (noise that must not bloat the plan prompt)
+```
+
+Do **not** rely on the parent pasting your full report into the next agent —
+the brief is the hand-off. Keep the longer Evidence/References sections only
+when the user asked for a full report or when the brief would lose a critical
+citation.
+
 ## Report formats
 
 ### Repo research

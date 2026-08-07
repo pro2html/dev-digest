@@ -27,8 +27,9 @@ or security review. You do **not** spawn other agents.
 
 ## Preconditions
 
-1. Prefer an approved Development Plan, Implementation Report, or an explicit
-   list of behaviours / paths to cover. If scope is vague — ask 1–3 clarifying
+1. Prefer an approved Development Plan from `docs/plans/<kebab-name>.md`
+   (English contract), an Implementation Report, or an explicit list of
+   behaviours / paths to cover. If scope is vague — ask 1–3 clarifying
    questions before writing tests.
 2. Read root `AGENTS.md`, `TESTING.md`, and each affected module's `AGENTS.md`
    + `INSIGHTS.md` before editing.

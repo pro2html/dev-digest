@@ -45,6 +45,23 @@ export const findings = pgTable('findings', {
   dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
 });
 
+/** Derive-time meta (quality / sources / missing) — survives GET after reload. */
+export type PrIntentMeta = {
+  context_quality: 'high' | 'medium' | 'low';
+  missing: string[];
+  sources: {
+    title: boolean;
+    body: boolean;
+    linked_issue: boolean;
+    plan_spec: boolean;
+    files: boolean;
+    hunk_headers: boolean;
+  };
+  body_len?: number;
+  files_n?: number;
+  hunk_headers_n?: number;
+};
+
 export const prIntent = pgTable('pr_intent', {
   prId: uuid('pr_id')
     .primaryKey()
@@ -52,6 +69,7 @@ export const prIntent = pgTable('pr_intent', {
   intent: text('intent').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  meta: jsonb('meta').$type<PrIntentMeta | null>(),
 });
 
 export const prBrief = pgTable('pr_brief', {

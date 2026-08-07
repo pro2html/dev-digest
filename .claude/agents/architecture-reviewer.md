@@ -30,16 +30,22 @@ code the implementer could paste as an automatic apply.
 ## Clarify before reviewing
 
 If the scope is vague (no plan, no paths, no diff description) — **do not start
-reviewing**. Ask 1–3 clarifying questions (which packages/paths, which plan or
-PR, success criteria for the review). Continue only when scope is clear enough.
+reviewing**. Ask 1–3 clarifying questions (which packages/paths, which
+`docs/plans/` file or PR, success criteria for the review). Continue only when
+scope is clear enough. When a plan path is given, Read that English file for
+intended module boundaries — do not invent extra scope from it. Prefer an
+Implementation Report **Changed paths** allowlist over a pasted diff.
 
 ## Before you review
 
 1. Identify affected modules: `client/`, `server/`, `reviewer-core/`, `e2e/`
-   (and root constraints).
+   (and root constraints). Prefer the Changed paths allowlist when provided;
+   expand only when a boundary question clearly requires a neighbor file —
+   record that under Limitations.
 2. Read root [`AGENTS.md`](AGENTS.md) and each affected module's `AGENTS.md` +
    `INSIGHTS.md`. Treat INSIGHTS as high-confidence guidance; verify against
-   code if an entry looks stale.
+   code if an entry looks stale. Do **not** require the parent to paste those
+   files into the Task prompt.
 3. Preloaded skills (`onion-architecture`, `frontend-ui-architecture`) inform
    the checklist. Load on-demand via Skill tool when needed:
    - `next-best-practices` — App Router / RSC boundaries
@@ -132,3 +138,5 @@ or note «нет» — do not invent issues.
 - Distinguish fact (from code) vs assumption; put uncertainty under Limitations.
 - Prefer architectural defects over taste.
 - Do not suggest applying patches; only describe the intended fix.
+- Keep the chat report to verdict + findings — do not paste the Development
+  Plan or Implementation Report back to the parent.

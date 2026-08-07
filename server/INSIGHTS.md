@@ -113,3 +113,23 @@ entry short (what happened, what to do instead).
 **Evidence:** `RunLogger.logFor` maps to `{ t, kind, msg }` only; `RunLogLine` has no `data`; `RunStatus` / `LiveLogStream` render `e.msg` / `l.m` only. Fixed by inlining count/names into the message string in `run-executor.ts`.
 
 **Action:** Put user-visible run-log details in `msg` (same style as `Diff ready — N…` / `callers digest: N…`). Use `data` only for stdout/pino mirroring unless you also extend `RunLogLine` + LiveLogStream.
+
+## 2026-08-07 — Pattern
+
+**Insight:** Intent classifier sources must never embed `pr_files.patch` bodies — only `@@ … @@` hunk headers + file paths. A naive “reject any line starting with `+`/`-`” invariant on the *whole* classifier payload is wrong: PR titles/bodies routinely contain those characters and would false-fail.
+
+**Why it matters:** Enforcing “no +/- lines” on assembled text (title+body+headers) breaks real PRs; the real invariant is “never concatenate raw patch bodies into the classifier input.”
+
+**Evidence:** `server/src/modules/intent/sources.ts` (`extractHunkHeaders` + sections built from headers only); Intent Layer plan Phase 1.
+
+**Action:** Keep patch bodies out of `buildIntentSources`; validate header extraction, not the entire user payload string.
+
+## 2026-08-07 — Pattern
+
+**Insight:** Intent derive meta (`context_quality`, `sources`, `missing`) must live in `pr_intent.meta` jsonb — not only in the POST response. `GET /pulls/:id/intent` and client `invalidateQueries(["pr-intent"])` after Run Review otherwise wipe the quality badge. Persist ownership stays in `modules/intent/repository`; `reviews` may call `IntentService` but must not own `pr_intent` CRUD (avoids reviews ↔ intent cycles via `ReviewRepository`).
+
+**Why it matters:** Transport-only meta looks fine until the first refetch; peer-module bidirectional imports blur Onion boundaries even when there is no runtime cycle.
+
+**Evidence:** Architecture review A1/A2 on Intent Layer; `0014_pink_thunderbird.sql` adds `meta`; `IntentRepository.upsertIntent(..., meta)`.
+
+**Action:** Persist derive meta with the Intent row; keep dependency direction `reviews → intent → db`.

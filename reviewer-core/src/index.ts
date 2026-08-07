@@ -34,6 +34,14 @@ export {
 // Map-reduce helpers (reduce partials, slice a file's diff).
 export { reduceReviews, sliceDiff } from './review/reduce.js';
 
+// Intent scope filter (after grounding) + prompt formatting helpers.
+export {
+  filterOutOfScopeFindings,
+  formatIntentForPrompt,
+  outOfScopeSummarySuffix,
+  type ScopeFilterResult,
+} from './review/scope-filter.js';
+
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {
   reviewPullRequest,

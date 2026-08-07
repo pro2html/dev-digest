@@ -1,5 +1,6 @@
 import type {
   Finding,
+  Intent,
   LLMProvider,
   PromptAssembly,
   Review,
@@ -10,6 +11,11 @@ import { Review as ReviewSchema } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import {
+  filterOutOfScopeFindings,
+  formatIntentForPrompt,
+  outOfScopeSummarySuffix,
+} from './scope-filter.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -71,6 +77,11 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /**
+   * Derived PR intent (untrusted). When present, injected into the prompt and
+   * used to filter non-critical out-of-scope findings after grounding.
+   */
+  intent?: Intent;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -127,6 +138,8 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   const emit = (kind: RunEventKind, msg: string, data?: unknown) =>
     input.onEvent?.({ kind, msg, data });
 
+  const intentText = input.intent ? formatIntentForPrompt(input.intent) : undefined;
+
   const promptParts = {
     system: input.systemPrompt,
     skills: input.skills,
@@ -135,6 +148,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: intentText,
     task: input.task,
   };
 
@@ -201,11 +215,30 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   }
   emit('result', `Citation grounding: ${grounding}`);
 
-  // Score is derived from the findings that SURVIVED grounding (not the model's
-  // self-reported number, and not the pre-grounding set) so the score, the
-  // findings list, and the deterministic event always agree.
+  // Intent scope filter AFTER grounding: drop non-critical OOS noise; never
+  // invent fake file:line findings — signal via summary suffix + Live Log.
+  const scoped = filterOutOfScopeFindings(ground.kept, input.intent);
+  if (scoped.dropped.length > 0) {
+    emit(
+      'result',
+      `intent.scope_filter — suppressed ${scoped.dropped.length} out-of-scope non-critical finding(s)`,
+    );
+  }
+
+  const kept = scoped.kept;
+  const summary =
+    merged.summary + outOfScopeSummarySuffix(scoped.dropped.length);
+
+  // Score is derived from the findings that SURVIVED grounding + scope filter
+  // (not the model's self-reported number) so the score, the findings list,
+  // and the deterministic event always agree.
   return {
-    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
+    review: {
+      ...merged,
+      summary,
+      findings: kept,
+      score: scoreFromFindings(kept),
+    },
     grounding,
     dropped: ground.dropped,
     mode,

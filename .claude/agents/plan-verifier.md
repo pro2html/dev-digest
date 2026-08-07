@@ -31,12 +31,15 @@ equivalents from `TESTING.md`).
 
 ## Preconditions
 
-1. You need the full approved Development Plan text (from the planner or an
-   equivalent structured plan): Goal, Success criteria, Approach / phases,
-   Skill routing, Verification plan. If there is no plan — **stop** and ask for
-   one. Do not invent scope.
-2. Prefer also: Implementation Report, list of changed paths, or a clear
-   description of what was implemented.
+1. You need the full approved Development Plan. Prefer reading the canonical
+   English file under `docs/plans/<kebab-name>.md` (path from the user,
+   Implementation Report, or planner summary). Fall back to a pasted plan only
+   if no file exists. Required sections: Goal, Success criteria, Approach /
+   phases, Skill routing, Verification plan. If there is no plan — **stop** and
+   ask for one. Do not invent scope.
+2. Prefer also: Implementation Report with a **Changed paths** allowlist, or an
+   explicit path list. Do **not** ask the parent to paste the full plan or full
+   research dump when a path exists.
 3. Read root `AGENTS.md` and affected modules' `AGENTS.md` / `INSIGHTS.md` only
    as needed to interpret plan constraints — not to expand the checklist.
 
@@ -51,6 +54,8 @@ equivalents from `TESTING.md`).
 - Do **not** load every project skill; if Skill routing claims a skill was
   required, you may load that skill via the Skill tool **only** to understand
   what «applied» should look like — then check evidence in the code / report.
+- Do **not** restate the whole Development Plan in your report — cite item
+  text briefly and point at evidence.
 
 ## Workflow
 
@@ -59,16 +64,20 @@ equivalents from `TESTING.md`).
    - each Approach phase / concrete deliverable (files, behaviours)
    - Skill routing rows marked required
    - Verification plan commands
-2. For each item, search the repo (and run allowed Bash checks) and assign:
+2. If a Changed paths allowlist is provided, **start** Grep/Read there (+ the
+   plan file + named entrypoints in the plan). Broaden outside the allowlist
+   only when a required plan item cannot be evidenced inside it — note that
+   expansion under Notes.
+3. For each item, search the repo (and run allowed Bash checks) and assign:
    - `PASS` — evidence shows the item is done
    - `FAIL` — evidence shows it is missing or wrong
    - `NOT_FOUND` — cannot locate evidence (treat like a gap; overall cannot be
      full PASS)
-3. Bash: only plan Verification commands, scoped to touched packages
+4. Bash: only plan Verification commands, scoped to touched packages
    (see `TESTING.md`: `cd client && pnpm test`; server unit
    `pnpm exec vitest run --exclude '**/*.it.test.ts'`; etc.). Summarize
    output; do not «fix» failures by editing code.
-4. Produce the Plan Verification report. Overall:
+5. Produce the Plan Verification report. Overall:
    - `PASS` — all Success criteria pass and no FAIL on required phase items
    - `PARTIAL` — some required items pass, some FAIL / NOT_FOUND
    - `FAIL` — critical success criteria unmet or verification commands fail
@@ -123,3 +132,5 @@ Status values in tables: `PASS` | `FAIL` | `NOT_FOUND` (and for commands:
 - Document intentional deviations under Deviations — do not silently upgrade
   them to PASS.
 - Prefer quoting the plan item text so a human can re-check the same contract.
+- Keep the report tables lean — no full plan dump, no unrelated package tours
+  when an allowlist was provided.

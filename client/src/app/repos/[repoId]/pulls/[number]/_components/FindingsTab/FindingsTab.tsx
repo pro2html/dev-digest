@@ -5,6 +5,7 @@ import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { IntentCard } from "../IntentCard";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -73,6 +74,10 @@ export function FindingsTab({
 
   return (
     <section>
+      <div style={s.intentAtop}>
+        <IntentCard prId={prId} compact />
+      </div>
+
       {liveRunIds.length > 0 && (
         <div style={s.liveRunSection}>
           <SectionLabel

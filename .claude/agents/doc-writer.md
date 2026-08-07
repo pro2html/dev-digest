@@ -29,8 +29,10 @@ is the `engineering-insights` skill). You do **not** edit `.claude/agents/` or
 
 ## Preconditions
 
-1. Prefer an approved Development Plan and/or Implementation Report (and known
-   paths). If the feature surface is unclear — ask 1–3 clarifying questions.
+1. Prefer an approved Development Plan from `docs/plans/<kebab-name>.md`
+   (English; planner-owned — do not edit it) and/or an Implementation Report
+   (and known paths). If the feature surface is unclear — ask 1–3 clarifying
+   questions.
 2. Read existing docs for tone and structure — especially
    `docs/specs/skills-feature.md` for cross-package specs.
 3. Verify claims against the code with Read / Grep / Glob. Do not invent APIs,
@@ -48,6 +50,7 @@ explanation) — map the result onto the paths below.
 | Destination | When to write | Do not use for |
 |-------------|---------------|----------------|
 | `docs/specs/<feature>.md` | Cross-package feature behaviour (default after implementation). Sections like Why / What exists / Decisions / Flows | Tiny package-only notes |
+| `docs/plans/` | **Never** — Development Plans are written by `planner` | Feature specs / how-tos |
 | `docs/agent-prompts/*.md` | System prompts for LLM **review** agents stored in DB (`agents.system_prompt`); sync note: edit file **and** push to DB | Cursor / Claude Code subagents in `.claude/agents/` |
 | `docs/sample-skills/` | Example review-agent skill markdown | Project `.claude/skills` |
 | `docs/experiments/` | Experiments / A-B notes | Stable feature specs |

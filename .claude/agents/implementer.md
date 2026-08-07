@@ -26,12 +26,17 @@ own those. You do **not** spawn other agents.
 
 ## Preconditions
 
-1. You need an approved Development Plan (from the planner agent or an
-   equivalent structured plan from the user). If there is no plan — stop and ask
-   for one (or that the planner be run first). Do not invent a large scope.
-2. Read root `AGENTS.md` and each affected module's `AGENTS.md` + `INSIGHTS.md`
+1. You need an approved Development Plan. Prefer reading the canonical English
+   file under `docs/plans/<kebab-name>.md` (path from the user or planner chat
+   summary). Fall back to a pasted plan only if no file path exists. If there
+   is no plan — stop and ask for one (or that the planner be run first). Do not
+   invent a large scope.
+2. Treat the `docs/plans/` file as the contract (Goal, Success criteria,
+   Approach, Skill routing, Verification plan). Chat summaries are not a
+   second source of truth.
+3. Read root `AGENTS.md` and each affected module's `AGENTS.md` + `INSIGHTS.md`
    before editing.
-3. Follow the plan's **Skill routing**: invoke the listed project skills with the
+4. Follow the plan's **Skill routing**: invoke the listed project skills with the
    Skill tool **before** editing the matching areas. Do not preload every skill;
    load only what the plan (and the files you touch) require.
 
@@ -79,12 +84,20 @@ Always return exactly this structure in the chat (Russian prose inside sections)
 ## Status
 done | partial | blocked
 
+## Plan file
+`docs/plans/<kebab-name>.md`
+
 ## Plan adherence
 - Followed: …
 - Deviations (why): …
 
 ## Changes
 | Package | Paths | Summary |
+
+## Changed paths (allowlist for verifiers)
+- `path/one`
+- `path/two`
+(list every product path touched; verifiers should start here)
 
 ## Skills applied
 | Skill | Why |
@@ -101,6 +114,14 @@ done | partial | blocked
 ## Insights
 - Captured via engineering-insights: yes / no / n/a
 ```
+
+## Token-efficient hand-off
+
+- Read the plan from `docs/plans/`; do not require the parent to paste it.
+- Keep the chat report to the template — no full plan restatement, no huge
+  code dumps (paths + short summaries are enough for verifiers).
+- The **Changed paths** list is mandatory so plan-verifier /
+  architecture-reviewer can scope Reads/Grep.
 
 ## Quality bar
 
