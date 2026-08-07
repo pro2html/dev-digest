@@ -133,3 +133,13 @@ entry short (what happened, what to do instead).
 **Evidence:** Architecture review A1/A2 on Intent Layer; `0014_pink_thunderbird.sql` adds `meta`; `IntentRepository.upsertIntent(..., meta)`.
 
 **Action:** Persist derive meta with the Intent row; keep dependency direction `reviews → intent → db`.
+
+## 2026-08-07 — Decision
+
+**Insight:** Smart Diff is compute-on-read (no table, no LLM) and owns its own Drizzle reads in `modules/smart-diff/repository.ts` — it must not import `IntentService` or `ReviewRepository`. Findings overlay uses the newest single `reviews` row only (not union-by-`run_id`).
+
+**Why it matters:** Sharing Intent's derive path would pull flash-model calls into a read that mentors require to stay LLM-free; depending on `ReviewRepository` risks the same reviews↔peer cycle Intent already avoided. Union-by-`run_id` is a product choice for "Run all" demos — MVP sticks to newest-review for simplicity.
+
+**Evidence:** `server/src/modules/smart-diff/service.ts` (no LLM/feature-model); `server/src/modules/smart-diff/repository.ts:31-47` (`getLatestReviewFindingLines`); `pnpm verify:l03` runs real classifier unit tests.
+
+**Action:** Keep Smart Diff a separate Fastify plugin; extend findings scope only with an explicit product decision. Add classifier cases to `test/smart-diff-classifier.test.ts` and keep `verify:l03` pointing at that file.

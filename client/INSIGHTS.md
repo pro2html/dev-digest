@@ -93,3 +93,23 @@ entry short (what happened, what to do instead).
 **Evidence:** Comment in `client/src/lib/feature-models.ts`; Intent Layer default change required three places (server vendor, client vendor, `lib/feature-models.ts`).
 
 **Action:** When changing any `FEATURE_MODELS` default/label, sync server vendor + client vendor **and** `client/src/lib/feature-models.ts` in the same change.
+
+## 2026-08-07 — Pattern
+
+**Insight:** `SmartDiff` / `SmartDiffFile` carry paths, +/- counts, and `finding_lines` only — no `patch` and no severity. The Files tab joins `pr.files` by path for patch text, and joins newest-review findings from `usePrReviews` (`file` + `start_line` + `severity`) for colored markers. Invalidate `["smart-diff", prId]` alongside `["reviews", prId]` on run done.
+
+**Why it matters:** Inventing `pseudocode_summary` or stuffing severity into the Smart Diff contract would force a shared-contract edit (dual vendor copies) or an LLM. Forgetting the query invalidation leaves badges empty until a full reload after Run Review.
+
+**Evidence:** `client/.../SmartDiffViewer/SmartDiffViewer.tsx` (path join + severity map); `client/src/lib/hooks/smart-diff.ts`; `client/.../page.tsx` invalidates `["smart-diff", prId]` in `onRunDone`.
+
+**Action:** Keep patch/severity joins on the client; leave `pseudocode_summary` null/hidden unless a later lesson populates it.
+
+## 2026-08-07 — Pattern
+
+**Insight:** Smart Diff route features must import `FileCard` / `AUTO_EXPAND_MAX_LINES` / finding types only from `@/components/diff-viewer` (barrel). Path joins for patch + severity use the same `normalizePath` as the server classifier (POSIX slashes, strip `./` and leading `/`), living in colocated `SmartDiffViewer/helpers.ts` — not in the React component file.
+
+**Why it matters:** Deep-importing `FileCard`/`constants`/`findings` couples the PR page to internal layout of `diff-viewer`. Raw `f.file` / `smartFile.path` keys can miss markers when GitHub and importer disagree on `./` or slashes.
+
+**Evidence:** Architecture review A1–A3 on Smart Diff; `client/src/components/diff-viewer/index.ts`; `SmartDiffViewer/helpers.ts` mirrors `server/.../smart-diff/classifier.ts` `normalizePath`.
+
+**Action:** Extend the diff-viewer barrel when a route needs more of its surface; keep path-identity helpers pure and colocated (or shared only if a plan explicitly allows touching contracts).
