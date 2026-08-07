@@ -61,6 +61,8 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  /** USD cost of this run (API-reported or price-book estimate); null when unknown. */
+  cost_usd: z.number().nullable(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -101,7 +103,14 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** USD cost of this run (API-reported or price-book estimate); null when unknown. */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
+  // Per-severity breakdown of this run's findings (denormalized at
+  // completion, like `findings_count`); null on failed/cancelled runs.
+  findings_critical: z.number().int().nullable(),
+  findings_warning: z.number().int().nullable(),
+  findings_suggestion: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),
   // Review outcome, denormalized onto the run row at completion (the timeline

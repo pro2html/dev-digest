@@ -3,7 +3,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, ReviewRecord } from "@devdigest/shared";
+import { formatCost } from "@/lib/format-cost";
+import { FindingsIndicator } from "@/components/FindingsIndicator";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -87,12 +89,21 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  reviews = [],
+  repoFullName,
+  headSha,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** Reviews (with findings), used to populate each run's findings hover-card. */
+  reviews?: ReviewRecord[];
+  /** owner/repo + head sha — lets each run's findings hover-card deep-link
+   *  file:line to GitHub (same helper as FindingCard). */
+  repoFullName?: string | null;
+  headSha?: string | null;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -101,6 +112,15 @@ export function RunHistory({
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
+
+  // Per-run findings, keyed by run_id — the counts on RunSummary are
+  // denormalized (fast, always present); this preview is looked up from the
+  // already-fetched reviews so the hover card can show titles/locations
+  // without a new endpoint.
+  const findingsByRunId = new Map<string, ReviewRecord["findings"]>();
+  for (const review of reviews) {
+    if (review.run_id) findingsByRunId.set(review.run_id, review.findings);
+  }
 
   const items: TimelineItem[] = [
     ...runs.map((run) => ({ kind: "run" as const, ts: tsOf(run.ran_at), run })),
@@ -189,14 +209,29 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                  <FindingsIndicator
+                    critical={r.findings_critical ?? 0}
+                    warning={r.findings_warning ?? 0}
+                    suggestion={r.findings_suggestion ?? 0}
+                    findings={findingsByRunId.get(r.run_id)}
+                    repoFullName={repoFullName}
+                    headSha={headSha}
+                    size="sm"
+                    gap={8}
+                  />
+                  {(r.blockers ?? 0) > 0 && <span>{t("runStatus.blockers", { count: r.blockers ?? 0 })}</span>}
                 </div>
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {settled && (r.tokens_in != null || r.tokens_out != null) && (
+                <span className="tnum">
+                  {((r.tokens_in ?? 0) + (r.tokens_out ?? 0)).toLocaleString()} {t("timeline.tokens")} ·{" "}
+                  {formatCost(r.cost_usd)}
+                </span>
+              )}
             </div>
             <button
               type="button"

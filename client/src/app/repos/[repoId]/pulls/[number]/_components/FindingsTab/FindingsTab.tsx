@@ -131,6 +131,9 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            reviews={runs}
+            repoFullName={repoFullName}
+            headSha={headSha}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}

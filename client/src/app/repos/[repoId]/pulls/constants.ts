@@ -24,7 +24,14 @@ export const SIZE_COLOR: Record<string, string> = {
 };
 
 /** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 78px";
+export const GRID = "1fr 132px 92px 60px 128px 84px 118px 78px";
+
+/**
+ * Corner radius of `.tableCard`. No longer relies on `overflow: hidden` to clip
+ * children to it (that also clipped the FindingsIndicator hover card) — the
+ * head row and the last PR row round their own outer corners to match instead.
+ */
+export const TABLE_RADIUS = 10;
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -44,6 +51,8 @@ export const COLUMN_KEYS: string[] = [
   "author",
   "size",
   "score",
+  "findings",
+  "cost",
   "status",
   "updated",
 ];

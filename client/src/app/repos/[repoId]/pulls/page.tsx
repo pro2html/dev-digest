@@ -98,7 +98,7 @@ export default function PullsPage() {
         />
         <div style={s.headRow}>
           {COLUMN_KEYS.map((key, i) => (
-            <div key={key} style={s.headCell(i === COLUMN_KEYS.length - 1)}>
+            <div key={key} style={s.headCell(key === "cost" || i === COLUMN_KEYS.length - 1)}>
               {t(`list.columns.${key}`)}
             </div>
           ))}
@@ -127,7 +127,15 @@ export default function PullsPage() {
             }
           />
         ) : (
-          filtered.map((pr) => <PRRow key={pr.number} pr={pr} repoId={repoId} />)
+          filtered.map((pr, i) => (
+            <PRRow
+              key={pr.number}
+              pr={pr}
+              repoId={repoId}
+              repoFullName={activeRepo?.full_name ?? null}
+              isLast={i === filtered.length - 1}
+            />
+          ))
         )}
       </div>
     </AppShell>
