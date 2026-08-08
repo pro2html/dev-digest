@@ -59,13 +59,36 @@ export default function PRDetailPage() {
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
+  const focusFindingId = search.get("finding");
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  /** Manual tab changes drop one-shot `finding` deep-links so Agent runs opens at top. */
+  const setTab = (t: string) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("tab", t);
+    sp.delete("finding");
+    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+  };
+  /** Files changed → Agent runs: switch tab and deep-link the finding card (one-shot). */
+  const openFinding = (findingId: string) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("tab", "findings");
+    sp.set("finding", findingId);
+    sp.delete("trace");
+    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+  };
+  /** Clear `?finding=` after the deep-link scroll so a later visit stays at top. */
+  const clearFocusFinding = React.useCallback(() => {
+    if (!search.get("finding")) return;
+    const sp = new URLSearchParams(search.toString());
+    sp.delete("finding");
+    const q = sp.toString();
+    router.replace(`/repos/${repoId}/pulls/${number}${q ? `?${q}` : ""}`);
+  }, [search, router, repoId, number]);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -134,7 +157,7 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} />}
+        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} />}
 
         {tab === "findings" && (
           <FindingsTab
@@ -147,6 +170,8 @@ export default function PRDetailPage() {
             prCommits={pr.commits}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            focusFindingId={focusFindingId}
+            onFocusFindingConsumed={clearFocusFinding}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
@@ -157,6 +182,10 @@ export default function PRDetailPage() {
               invalidateActiveRuns();
               invalidateRunHistory();
               refetchReviews();
+              if (prId) {
+                qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
+                qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
+              }
             }}
           />
         )}
@@ -167,6 +196,7 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            onOpenFinding={openFinding}
           />
         )}
       </div>

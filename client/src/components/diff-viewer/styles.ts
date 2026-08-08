@@ -63,6 +63,36 @@ export const s = {
     wordBreak: "break-word",
     color: "var(--text-primary)",
     paddingRight: 12,
+    minWidth: 0,
+  } satisfies CSSProperties,
+  findingLinks: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+    paddingRight: 12,
+    marginLeft: 8,
+    alignSelf: "center",
+  } satisfies CSSProperties,
+  findingLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    fontSize: 12,
+    fontWeight: 500,
+    lineHeight: 1,
+    textDecoration: "underline",
+    textUnderlineOffset: 2,
+  } satisfies CSSProperties,
+  /** Far-left severity rail (matches FindingCard stripe colors). */
+  findingStripe: {
+    width: 3,
+    alignSelf: "stretch",
+    flexShrink: 0,
+    borderRadius: 0,
   } satisfies CSSProperties,
 } as const;
 

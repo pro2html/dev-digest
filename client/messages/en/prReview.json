@@ -28,6 +28,12 @@
   },
   "panel": {
     "hideLowConfidence": "Hide low confidence",
+    "critical": "Critical",
+    "warning": "Warning",
+    "suggestion": "Suggestion",
+    "filterCritical": "Show critical findings ({count})",
+    "filterWarning": "Show warning findings ({count})",
+    "filterSuggestion": "Show suggestion findings ({count})",
     "noMatchTitle": "No findings match",
     "noMatchBody": "Adjust the filters above, or run a review to generate findings."
   },
@@ -55,14 +61,23 @@
     "blockers": " · {count} blockers"
   },
   "smartDiff": {
-    "coreLabel": "Core",
+    "coreLabel": "Core logic",
     "wiringLabel": "Wiring",
     "boilerplateLabel": "Boilerplate",
+    "coreSubtitle": "The substance of the change — review closely.",
+    "wiringSubtitle": "Hooks the core into the app.",
+    "boilerplateSubtitle": "Generated / mechanical — skim.",
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
     "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "findingsBadge": "{count, plural, one {# finding} other {# findings}}",
+    "groupedByRole": "Smart Diff · grouped by role",
+    "orderSmart": "Smart order",
+    "orderOriginal": "Original order",
+    "loading": "Loading smart diff…",
+    "error": "Couldn't load smart diff.",
+    "splitPrefix": "Suggested split:"
   },
   "list": {
     "breadcrumb": "Pull Requests",
@@ -112,5 +127,23 @@
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run",
     "tokens": "tok"
+  },
+  "intent": {
+    "title": "Intent",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "riskAreas": "Risk areas",
+    "none": "None listed",
+    "empty": "Intent not derived yet. Derive it now, or it will run automatically on the next review.",
+    "derive": "Derive intent",
+    "rerun": "Re-run intent",
+    "retry": "Retry",
+    "error": "Couldn’t load intent.",
+    "missingContext": "Missing context: {items}",
+    "quality": {
+      "high": "High context",
+      "medium": "Medium context",
+      "low": "Low context"
+    }
   }
 }

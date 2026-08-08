@@ -56,8 +56,29 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+/** Source flags for how intent was derived (API transport + persisted in pr_intent.meta). */
+export const PrIntentSources = z.object({
+  title: z.boolean(),
+  body: z.boolean(),
+  linked_issue: z.boolean(),
+  plan_spec: z.boolean(),
+  files: z.boolean(),
+  hunk_headers: z.boolean(),
+});
+export type PrIntentSources = z.infer<typeof PrIntentSources>;
+
+/**
+ * Intent persisted for a PR (Intent + pr_id) plus derive meta. Quality/sources
+ * are stored in `pr_intent.meta` so GET survives reload / query invalidation.
+ */
+export const PrIntentRecord = Intent.extend({
+  pr_id: z.string(),
+  context_quality: z.enum(['high', 'medium', 'low']).nullish(),
+  missing_context: z.array(z.string()).nullish(),
+  sources: PrIntentSources.nullish(),
+  /** MVP: always false (no derived_for_sha); clients may ignore. */
+  stale: z.boolean().nullish(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 
 /** Smart-diff response for a PR (the SmartDiff). */

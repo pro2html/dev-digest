@@ -83,3 +83,43 @@ entry short (what happened, what to do instead).
 **Evidence:** Spec §7.3; `client/src/vendor/ui/icons.tsx` (`Edit: Pencil`); fixed in `ConventionCard.tsx` via separate `onAccept` / `onUnaccept` / `onReject`.
 
 **Action:** Treat Accept as a toggle (accepted ↔ pending); keep Reject distinct. Prefer `icon="Edit"` for pencil affordances.
+
+## 2026-08-07 — Context
+
+**Insight:** Settings Models UI does **not** read `FEATURE_MODELS` from vendored `@devdigest/shared` at runtime — `client/src/lib/feature-models.ts` is a third, client-only mirror (webpack can't resolve shared's `.js` re-exports). Changing `review_intent` defaults in both `vendor/shared/contracts/platform.ts` copies is not enough for the Settings picker defaults.
+
+**Why it matters:** Editing only the shared contracts leaves Settings still advertising `openai`/`gpt-4.1` for Intent until the local mirror is updated.
+
+**Evidence:** Comment in `client/src/lib/feature-models.ts`; Intent Layer default change required three places (server vendor, client vendor, `lib/feature-models.ts`).
+
+**Action:** When changing any `FEATURE_MODELS` default/label, sync server vendor + client vendor **and** `client/src/lib/feature-models.ts` in the same change.
+
+## 2026-08-07 — Pattern
+
+**Insight:** `SmartDiff` / `SmartDiffFile` carry paths, +/- counts, and `finding_lines` only — no `patch` and no severity. The Files tab joins `pr.files` by path for patch text, and joins newest-review findings from `usePrReviews` (`file` + `start_line` + `severity`) for colored markers. Invalidate `["smart-diff", prId]` alongside `["reviews", prId]` on run done.
+
+**Why it matters:** Inventing `pseudocode_summary` or stuffing severity into the Smart Diff contract would force a shared-contract edit (dual vendor copies) or an LLM. Forgetting the query invalidation leaves badges empty until a full reload after Run Review.
+
+**Evidence:** `client/.../SmartDiffViewer/SmartDiffViewer.tsx` (path join + severity map); `client/src/lib/hooks/smart-diff.ts`; `client/.../page.tsx` invalidates `["smart-diff", prId]` in `onRunDone`.
+
+**Action:** Keep patch/severity joins on the client; leave `pseudocode_summary` null/hidden unless a later lesson populates it.
+
+## 2026-08-07 — Pattern
+
+**Insight:** Smart Diff route features must import `FileCard` / `AUTO_EXPAND_MAX_LINES` / finding types only from `@/components/diff-viewer` (barrel). Path joins for patch + severity use the same `normalizePath` as the server classifier (POSIX slashes, strip `./` and leading `/`), living in colocated `SmartDiffViewer/helpers.ts` — not in the React component file.
+
+**Why it matters:** Deep-importing `FileCard`/`constants`/`findings` couples the PR page to internal layout of `diff-viewer`. Raw `f.file` / `smartFile.path` keys can miss markers when GitHub and importer disagree on `./` or slashes.
+
+**Evidence:** Architecture review A1–A3 on Smart Diff; `client/src/components/diff-viewer/index.ts`; `SmartDiffViewer/helpers.ts` mirrors `server/.../smart-diff/classifier.ts` `normalizePath`.
+
+**Action:** Extend the diff-viewer barrel when a route needs more of its surface; keep path-identity helpers pure and colocated (or shared only if a plan explicitly allows touching contracts).
+
+## 2026-08-07 — Pattern
+
+**Insight:** Inline finding affordances on Files changed are **word-links** (`suggestion` / `warning` / `blocker`) on the right of the finding's first line — not severity dots. Click sets `?tab=findings&finding=<id>` and scrolls to `[data-finding-id]`. Multiple findings on the same line must all render (`markersByLine` keeps an array; do not collapse to worst-only).
+
+**Why it matters:** Collapsing markers hid co-located findings; scrolling only inside the diff missed the mentor UX (jump to Agent runs). CRITICAL is labeled **blocker** in the diff (mockup), while `SEV.CRITICAL.label` stays "Critical" elsewhere.
+
+**Evidence:** `diff-viewer/findings.ts` (`findingLinkLabel`, `markersByLine`); `CodeLine.tsx`; `page.tsx` `openFinding`; `FindingsTab` / `ReviewRunAccordion` deep-link open + scroll.
+
+**Action:** Always pass `id` on `DiffFindingMarker` from review records; wire `onOpenFinding` from the PR page through DiffTab / SmartDiffViewer / DiffViewer.

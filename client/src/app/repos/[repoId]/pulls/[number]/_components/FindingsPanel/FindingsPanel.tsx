@@ -1,5 +1,5 @@
-/* FindingsPanel — hide-low-confidence + j/k navigation + FindingCard list,
-   wiring the accept/dismiss action hook (A2). */
+/* FindingsPanel — severity filter tabs + hide-low-confidence + j/k navigation
+   + FindingCard list, wiring the accept/dismiss action hook (A2). */
 "use client";
 
 import React from "react";
@@ -8,8 +8,9 @@ import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
-import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings } from "./helpers";
+import { KEY_TO_ACTION, type AnchorSeverity } from "./constants";
+import { severityCounts, visibleFindings } from "./helpers";
+import { SeverityTabs } from "./SeverityTabs";
 import { s } from "./styles";
 
 export function FindingsPanel({
@@ -17,18 +18,37 @@ export function FindingsPanel({
   prId,
   repoFullName,
   headSha,
+  focusFindingId = null,
 }: {
   findings: FindingRecord[];
   prId: string;
   repoFullName?: string | null;
   headSha?: string | null;
+  focusFindingId?: string | null;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
+  const [severityFilter, setSeverityFilter] = React.useState<AnchorSeverity | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  const shown = React.useMemo(
+    () => visibleFindings(findings, hideLow, severityFilter),
+    [findings, hideLow, severityFilter],
+  );
+  const counts = React.useMemo(() => severityCounts(findings), [findings]);
+  const hasTabs = counts.CRITICAL + counts.WARNING + counts.SUGGESTION > 0;
+
+  React.useEffect(() => {
+    if (!focusFindingId) return;
+    const idx = shown.findIndex((f) => f.id === focusFindingId);
+    if (idx >= 0) setFocusIdx(idx);
+  }, [focusFindingId, shown]);
+
+  // Keep keyboard focus inside the visible list when filters change.
+  React.useEffect(() => {
+    setFocusIdx((i) => (shown.length === 0 ? 0 : Math.min(i, shown.length - 1)));
+  }, [shown.length]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -45,9 +65,16 @@ export function FindingsPanel({
     return () => window.removeEventListener("keydown", handler);
   }, [shown, focusIdx, action, prId]);
 
+  const toggleSeverity = (severity: AnchorSeverity) => {
+    setSeverityFilter((prev) => (prev === severity ? null : severity));
+    setFocusIdx(0);
+  };
+
   return (
     <div>
       <div style={s.toolbar}>
+        <SeverityTabs counts={counts} active={severityFilter} onToggle={toggleSeverity} />
+        {hasTabs && <div style={s.divider} aria-hidden />}
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />
@@ -62,8 +89,8 @@ export function FindingsPanel({
             <FindingCard
               key={f.id}
               f={f}
-              focused={i === focusIdx}
-              defaultExpanded={i === 0}
+              focused={i === focusIdx || f.id === focusFindingId}
+              defaultExpanded={i === 0 || f.id === focusFindingId}
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}
