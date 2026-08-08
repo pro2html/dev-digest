@@ -1,6 +1,14 @@
 import type { CSSProperties } from "react";
 
 export const s = {
+  /** Intent (left) · Blast Radius (right) — stacks on narrow viewports. */
+  intentBlastRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: 16,
+    alignItems: "stretch",
+  } satisfies CSSProperties,
+
   descriptionBox: {
     border: "1px solid var(--border)",
     borderRadius: 8,

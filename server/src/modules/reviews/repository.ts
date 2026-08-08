@@ -178,4 +178,22 @@ export class ReviewRepository {
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
   }
+
+  /** Workspace-scoped agent run (+ agent name) for summary projection. */
+  getAgentRun(
+    workspaceId: string,
+    runId: string,
+  ): Promise<
+    | { run: typeof t.agentRuns.$inferSelect; agentName: string | null }
+    | undefined
+  > {
+    return runRepo.getAgentRun(this.db, workspaceId, runId);
+  }
+
+  /** Review + findings for a run_id, if the review row exists. */
+  reviewForRun(
+    runId: string,
+  ): Promise<{ review: ReviewRow; findings: FindingRow[] } | undefined> {
+    return reviewRepo.reviewForRun(this.db, runId);
+  }
 }

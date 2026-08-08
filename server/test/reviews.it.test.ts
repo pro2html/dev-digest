@@ -227,6 +227,24 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       start_line: 11,
     });
 
+    // Compact summary for MCP get_findings(run_id)
+    const summaryRes = await app.inject({ method: 'GET', url: `/runs/${runId}/summary` });
+    expect(summaryRes.statusCode).toBe(200);
+    const summary = summaryRes.json();
+    expect(summary.run_id).toBe(runId);
+    expect(summary.status).toBe('done');
+    expect(summary.verdict).toBe('request_changes');
+    expect(summary.score).toBe(65);
+    expect(summary.findings).toHaveLength(1);
+    expect(summary.findings[0].title).toBe('Hardcoded Stripe secret key');
+    expect(summary.agent_id).toBe(agent.id);
+
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/runs/00000000-0000-4000-8000-000000000000/summary',
+    });
+    expect(missing.statusCode).toBe(404);
+
     await app.close();
   });
 

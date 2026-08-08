@@ -656,6 +656,64 @@ export class RepoIntelService implements RepoIntel {
   }
 
   /**
+   * Reverse import BFS: files that import `seeds` (directly or transitively).
+   * `fromFile` imports `toFile` → hop collects `fromFile` where `toFile` is in
+   * the frontier. Seeds are excluded from the returned list.
+   */
+  async getDependentFiles(
+    repoId: string,
+    seeds: string[],
+    depth: number = BFS_DEPTH,
+  ): Promise<string[]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    if (seeds.length === 0 || depth <= 0) return [];
+    const edges = await this.repo.getEdges(repoId);
+    if (edges.length === 0) return [];
+
+    // Reverse adjacency: imported → importers.
+    const reverseAdj = new Map<string, string[]>();
+    for (const e of edges) {
+      const arr = reverseAdj.get(e.toFile);
+      if (arr) arr.push(e.fromFile);
+      else reverseAdj.set(e.toFile, [e.fromFile]);
+    }
+
+    const visited = new Set<string>(seeds);
+    const dependents: string[] = [];
+    let frontier = [...seeds];
+
+    for (let d = 0; d < depth; d += 1) {
+      const next: string[] = [];
+      for (const file of frontier) {
+        for (const dep of reverseAdj.get(file) ?? []) {
+          if (visited.has(dep)) continue;
+          visited.add(dep);
+          dependents.push(dep);
+          next.push(dep);
+        }
+      }
+      if (next.length === 0) break;
+      frontier = next;
+    }
+    return dependents;
+  }
+
+  /** Thin facade over `file_facts` for blast (and other consumers). */
+  async getFileFacts(
+    repoId: string,
+    files: string[],
+  ): Promise<Record<string, { endpoints: string[]; crons: string[] }>> {
+    if (!this.container.config.repoIntelEnabled) return {};
+    if (files.length === 0) return {};
+    const rows = await this.repo.getFileFacts(repoId, files);
+    const out: Record<string, { endpoints: string[]; crons: string[] }> = {};
+    for (const r of rows) {
+      out[r.filePath] = { endpoints: r.endpoints, crons: r.crons };
+    }
+    return out;
+  }
+
+  /**
    * Dependency chains from the highest-ranked files (onboarding reading-path).
    * For each of the top roots, greedily follow the highest-ranked import target
    * up to BFS_DEPTH hops. Pure read over `file_edges` + `file_rank`.

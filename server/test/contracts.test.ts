@@ -4,6 +4,7 @@ import {
   Finding,
   Intent,
   BlastRadius,
+  PrBlastRecord,
   Risks,
   PrHistory,
   SmartDiff,
@@ -66,7 +67,7 @@ describe('AI contracts parse fixtures', () => {
     expect(f.trifecta_components).toContain('exfil_path');
   });
 
-  it('Intent / BlastRadius / Risks / PrHistory', () => {
+  it('Intent / BlastRadius / PrBlastRecord / Risks / PrHistory', () => {
     expect(() =>
       Intent.parse({ intent: 'x', in_scope: ['a'], out_of_scope: ['b'] }),
     ).not.toThrow();
@@ -82,6 +83,35 @@ describe('AI contracts parse fixtures', () => {
           },
         ],
         summary: 's',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      PrBlastRecord.parse({
+        status: 'partial',
+        reason: 'index_partial',
+        changed_symbols: [{ name: 'rateLimit', file: 'a.ts', kind: 'function' }],
+        downstream: [
+          {
+            symbol: 'rateLimit',
+            callers: [{ name: 'publicRouter', file: 'b.ts', line: 23 }],
+            endpoints_affected: ['GET /x'],
+            crons_affected: ['reset-rate-buckets'],
+          },
+        ],
+        summary: '1 symbol, 1 caller, 1 endpoint, 1 cron',
+        totals: { symbols: 1, callers: 1, endpoints: 1, crons: 1 },
+        prior_prs: [
+          {
+            pr_id: 'pr-1',
+            pr_number: 401,
+            title: 'Earlier rate-limit tweak',
+            author: 'alice',
+            status: 'merged',
+            touched_at: '2026-03-18T00:00:00.000Z',
+            files_overlap: ['a.ts'],
+            overlap_count: 1,
+          },
+        ],
       }),
     ).not.toThrow();
     expect(() =>

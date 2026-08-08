@@ -162,6 +162,22 @@ export interface RepoIntel {
   /** Top-N file paths by rank, filtered of tests/configs. */
   getConventionSamples(repoId: string, n: number): Promise<string[]>;
 
+  /**
+   * Reverse import walk: files that (transitively) import any of `seeds`.
+   * Edge semantics: `fromFile` imports `toFile` → dependents of S are rows
+   * with `toFile === S` (collect `fromFile`). Depth defaults to BFS_DEPTH (2).
+   * Seeds themselves are excluded from the result. Empty when flag off / no edges.
+   */
+  getDependentFiles(repoId: string, seeds: string[], depth?: number): Promise<string[]>;
+  /**
+   * Per-file endpoint/cron facts from `file_facts`. Keyed by path.
+   * Empty object when flag off / no rows.
+   */
+  getFileFacts(
+    repoId: string,
+    files: string[],
+  ): Promise<Record<string, { endpoints: string[]; crons: string[] }>>;
+
   // --- T3: onboarding reading-path + critical paths (graph required) ------
   getTopFilesByRank(
     repoId: string,

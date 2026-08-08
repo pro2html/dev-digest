@@ -143,3 +143,23 @@ entry short (what happened, what to do instead).
 **Evidence:** `server/src/modules/smart-diff/service.ts` (no LLM/feature-model); `server/src/modules/smart-diff/repository.ts:31-47` (`getLatestReviewFindingLines`); `pnpm verify:l03` runs real classifier unit tests.
 
 **Action:** Keep Smart Diff a separate Fastify plugin; extend findings scope only with an explicit product decision. Add classifier cases to `test/smart-diff-classifier.test.ts` and keep `verify:l03` pointing at that file.
+
+## 2026-08-08 — Decision
+
+**Insight:** `GET /runs/:id/summary` is a local Zod DTO in `modules/reviews/summary-dto.ts` — **not** added to `@devdigest/shared` / `vendor/shared`. It joins workspace-scoped `agent_runs` + optional `reviews`/`findings` for MCP `get_findings({ run_id })`.
+
+**Why it matters:** Editing vendor/shared ripples to client + reviewer-core; MCP only needs a compact projection and already defines its own result schemas in `mcp/src/schemas/`.
+
+**Evidence:** `reviews/routes.ts` (`/runs/:id/summary`), `reviews/service.ts` (`getRunSummary`), L04 plan locked decision (no vendor/shared edits).
+
+**Action:** Keep summary DTO server-local until a second non-MCP consumer needs the same contract — then consider promoting to shared deliberately.
+
+## 2026-08-08 — Decision
+
+**Insight:** Blast Radius HTTP (`modules/blast/`) is compute-on-read like Smart Diff: own Drizzle reads for pull/`pr_files`, graph via `repoIntel.getBlastRadius` + `getDependentFiles` (reverse BFS on `file_edges`), projection in pure `projectBlast`. Per-symbol caller cap (20) and status (`ok`/`partial`/`degraded`) live in the projector — `tryPersistentBlast` still does a global `callers.slice(0, 20)` for other consumers, so blast must not rely on that for the per-symbol rule.
+
+**Why it matters:** Putting the cap only in the facade would either under-serve symbols after a global truncate or force every consumer onto blast's status model. Reverse walk belongs on repo-intel so UI/MCP share one edge semantics (`from` imports `to` → dependents are importers).
+
+**Evidence:** `modules/blast/project.ts` (`MAX_CALLERS_PER_SYMBOL` per `viaSymbol`); `repo-intel/service.ts` `getDependentFiles`; `GET /pulls/:id/blast`.
+
+**Action:** New blast consumers should call `projectBlast` (or the HTTP route), not re-slice `BlastResult.callers` ad hoc; extend reverse-BFS only on the facade.

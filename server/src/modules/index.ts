@@ -11,6 +11,7 @@ import repoIntel from './repo-intel/routes.js';
 import conventions from './conventions/routes.js';
 import intent from './intent/routes.js';
 import smartDiff from './smart-diff/routes.js';
+import blast from './blast/routes.js';
 
 /**
  * Module registry. Each feature module is a Fastify plugin in
@@ -22,8 +23,8 @@ import smartDiff from './smart-diff/routes.js';
  * bundler, and vitest — native dynamic import() of .ts files is not portable.)
  *
  * This is the Part-0 starter set. Each course lesson adds its own module here
- * (intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
- * memory, plugins, …) without touching any other module or the shared schema.
+ * (brief/context/onboarding, eval/ci/hooks, memory, plugins, …) without
+ * touching any other module or the shared schema.
  */
 export const modules: Record<string, FastifyPluginAsync> = {
   settings,
@@ -38,4 +39,5 @@ export const modules: Record<string, FastifyPluginAsync> = {
   conventions,
   intent,
   smartDiff,
+  blast,
 };
