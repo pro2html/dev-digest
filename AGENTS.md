@@ -1,6 +1,6 @@
 # DevDigest — repo map
 
-Course starter: local-first AI PR review. Four standalone packages, **no
+Course starter: local-first AI PR review. Five standalone packages, **no
 monorepo workspace** — each has its own `package.json`/lockfile; cross-package
 code is shared via tsconfig path aliases, not published modules.
 
@@ -10,6 +10,7 @@ code is shared via tsconfig path aliases, not published modules.
 | `client/`        | `@devdigest/web`           | Next.js 15 web app                          | 3000 |
 | `reviewer-core/` | `@devdigest/reviewer-core` | Pure review engine (diff → LLM → findings)  | —    |
 | `e2e/`           | `@devdigest/e2e`           | Deterministic browser e2e (agent-browser)   | —    |
+| `mcp/`           | `@devdigest/mcp`           | Local stdio MCP server (L04 tools → API)    | —    |
 
 Only **Postgres** runs in Docker (`docker-compose.yml`); API and web run on the
 host via `pnpm dev` inside each package.

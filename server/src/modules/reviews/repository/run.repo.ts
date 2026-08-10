@@ -198,3 +198,17 @@ export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | und
   const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
   return row ? (row.trace as RunTrace) : undefined;
 }
+
+/** Workspace-scoped agent run lookup (for GET /runs/:id/summary). */
+export async function getAgentRun(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<{ run: typeof t.agentRuns.$inferSelect; agentName: string | null } | undefined> {
+  const [row] = await db
+    .select({ run: t.agentRuns, agentName: t.agents.name })
+    .from(t.agentRuns)
+    .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)));
+  return row ? { run: row.run, agentName: row.agentName ?? null } : undefined;
+}

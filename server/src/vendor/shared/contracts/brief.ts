@@ -43,6 +43,52 @@ export const BlastRadius = z.object({
 });
 export type BlastRadius = z.infer<typeof BlastRadius>;
 
+/**
+ * Transport for `GET /pulls/:id/blast` (L04 Blast Radius tab / MCP).
+ * Distinct from `BlastRadius` so `PrBrief.blast` stays a brief building block
+ * without status / totals.
+ */
+export const BlastMapStatus = z.enum(['ok', 'partial', 'degraded']);
+export type BlastMapStatus = z.infer<typeof BlastMapStatus>;
+
+export const BlastTotals = z.object({
+  symbols: z.number().int().nonnegative(),
+  callers: z.number().int().nonnegative(),
+  endpoints: z.number().int().nonnegative(),
+  crons: z.number().int().nonnegative(),
+});
+export type BlastTotals = z.infer<typeof BlastTotals>;
+
+/**
+ * Other PRs in the same repo that share files with this PR's diff.
+ * Computed from `pr_files` overlap — no LLM notes.
+ */
+export const BlastPriorPr = z.object({
+  pr_id: z.string(),
+  pr_number: z.number().int(),
+  title: z.string(),
+  author: z.string(),
+  status: z.string(),
+  /** Best-effort ISO timestamp (updated_at / opened_at). */
+  touched_at: z.string().nullable(),
+  files_overlap: z.array(z.string()),
+  overlap_count: z.number().int().nonnegative(),
+});
+export type BlastPriorPr = z.infer<typeof BlastPriorPr>;
+
+export const PrBlastRecord = z.object({
+  status: BlastMapStatus,
+  /** Always set when status is partial/degraded; optional hint when ok+empty. */
+  reason: z.string().optional(),
+  changed_symbols: z.array(ChangedSymbol),
+  downstream: z.array(DownstreamImpact),
+  summary: z.string(),
+  totals: BlastTotals.optional(),
+  /** Prior PRs touching overlapping files (same repo). Empty when none indexed. */
+  prior_prs: z.array(BlastPriorPr).optional(),
+});
+export type PrBlastRecord = z.infer<typeof PrBlastRecord>;
+
 // ---- Risks ----
 export const RiskSeverity = z.enum(['high', 'medium', 'low']);
 export type RiskSeverity = z.infer<typeof RiskSeverity>;

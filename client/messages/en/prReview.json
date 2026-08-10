@@ -145,5 +145,32 @@
       "medium": "Medium context",
       "low": "Low context"
     }
+  },
+  "blast": {
+    "title": "Blast radius",
+    "statSymbols": "{count} symbols",
+    "statCallers": "{count} callers",
+    "statEndpoints": "{count} endpoints",
+    "statCrons": "{count} crons",
+    "callerCount": "{count} callers",
+    "viewLabel": "Blast view",
+    "viewTree": "Tree",
+    "viewGraph": "Graph",
+    "graphAria": "Blast radius graph",
+    "graphClose": "Close graph",
+    "graphEmpty": "No downstream callers or endpoints to graph.",
+    "legendSymbol": "Changed symbol",
+    "legendCaller": "Caller",
+    "legendEndpoint": "Endpoint",
+    "bannerPartial": "Partial blast map",
+    "bannerDegraded": "Degraded blast map",
+    "noCallers": "No external callers found.",
+    "emptyBody": "No changed symbols were found in this PR’s files.",
+    "error": "Couldn’t load blast radius.",
+    "retry": "Retry",
+    "priorPrs": "Prior PRs touching these files",
+    "priorPrsEmpty": "No other imported PRs share files with this diff yet.",
+    "priorOverlap": "{count} shared files · {author}",
+    "priorMoreFiles": "+{count} more"
   }
 }

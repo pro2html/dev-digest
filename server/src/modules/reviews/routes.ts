@@ -7,11 +7,14 @@ import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
 
+import { RunSummaryDto } from './summary-dto.js';
+
 /**
  * reviews module.
  *   POST   /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
+ *   GET    /runs/:id/summary                           → compact run + review (MCP get_findings)
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
@@ -124,6 +127,16 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     if (!trace) throw new NotFoundError('Run trace not found');
     return trace;
   });
+
+  // ---- Compact run + review projection (MCP get_findings / polling clients) -
+  app.get(
+    '/runs/:id/summary',
+    { schema: { params: IdParams, response: { 200: RunSummaryDto } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return service.getRunSummary(workspaceId, req.params.id);
+    },
+  );
 
   // ---- Reads --------------------------------------------------------------
   app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {

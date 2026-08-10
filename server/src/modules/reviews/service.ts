@@ -3,10 +3,10 @@ import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/share
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
-import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
+import { type ReviewDto, type ReviewDtoFinding, findingRowToDto, reviewToDto } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
-import { reviewToDto } from './helpers.js';
+import type { RunSummaryDto } from './summary-dto.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -175,5 +175,45 @@ export class ReviewService {
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return this.repo.getRunTrace(runId);
+  }
+
+  /**
+   * Compact run + linked review projection for MCP `get_findings(run_id)`.
+   * Workspace-scoped; does not start a review.
+   */
+  async getRunSummary(workspaceId: string, runId: string): Promise<RunSummaryDto> {
+    const row = await this.repo.getAgentRun(workspaceId, runId);
+    if (!row) throw new NotFoundError('Run not found');
+
+    const linked = await this.repo.reviewForRun(runId);
+    const findings = linked
+      ? linked.findings.map((f) => {
+          const dto = findingRowToDto(f);
+          return {
+            id: dto.id,
+            severity: dto.severity,
+            category: dto.category,
+            title: dto.title,
+            file: dto.file,
+            start_line: dto.start_line,
+            end_line: dto.end_line,
+            rationale: dto.rationale ?? null,
+            suggestion: dto.suggestion ?? null,
+          };
+        })
+      : [];
+
+    const summary: RunSummaryDto = {
+      run_id: row.run.id,
+      agent_id: row.run.agentId,
+      agent_name: row.agentName,
+      status: row.run.status ?? 'unknown',
+      verdict: linked?.review.verdict ?? null,
+      score: linked?.review.score ?? row.run.score ?? null,
+      summary: linked?.review.summary ?? null,
+      findings,
+    };
+    if (row.run.error != null) summary.error = row.run.error;
+    return summary;
   }
 }
