@@ -1,6 +1,6 @@
 # Spec: Onboarding Generator
 Spec ID: SPEC-02
-Status: draft
+Status: approved
 Supersedes: none
 Packages: client, server
 
@@ -52,7 +52,7 @@ Primary user: a **new workspace member** opening the selected repository for the
 - Q: Public share link? A: No. Share copies the current studio tour URL. Recipients still need studio access.
 - Q: Write the tour into the clone as markdown later? A: No. Studio-only storage is permanent; no follow-up spec.
 - Q: GitHub deep-link on Open later, besides in-app preview? A: No. Open stays in-app clone preview only; no follow-up spec.
-- Q: Run the rest of the SDD pipeline in this session? A: No — spec only for now.
+- Q: Run the rest of the SDD pipeline in this session? A: Spec approved; implementation plan requested next.
 - Unresolved: none
 
 ## User stories
