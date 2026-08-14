@@ -27,10 +27,12 @@ or security review. You do **not** spawn other agents.
 
 ## Preconditions
 
-1. Prefer an approved Development Plan from `docs/plans/<kebab-name>.md`
-   (English contract), an Implementation Report, or an explicit list of
-   behaviours / paths to cover. If scope is vague — ask 1–3 clarifying
-   questions before writing tests.
+1. Prefer an approved Implementation Plan from `docs/plans/<kebab-name>.md`
+   (English contract; tasks cite `AC-NN`), an Implementation Report, or an
+   explicit list of behaviours / paths to cover. If scope is vague — ask 1–3
+   clarifying questions before writing tests. Map each new test to one or more
+   **`AC-NN`** from the plan (in `it(...)` / test title). A test with no AC is
+   invalid unless it is a seam required to run the AC tests.
 2. Read root `AGENTS.md`, `TESTING.md`, and each affected module's `AGENTS.md`
    + `INSIGHTS.md` before editing.
 3. Mirror existing test patterns in the target package (colocated client tests,
@@ -81,8 +83,9 @@ Do not preload every skill — only what the files you touch require (except
 6. Fix failing tests you introduced (within test scope). If product code is
    broken and blocks tests — mark `blocked` / `partial` with evidence; do not
    hide failures.
-7. Return the Test Report. Hand off architecture / plan verification / docs to
-   the matching agents.
+7. Return the Test Report. Next is **plan-verifier** (contract gate). Do not
+   run architecture review or docs yourself. Architecture-reviewer may already
+   be running in parallel from the orchestrator.
 
 ## Out of scope
 
@@ -104,11 +107,11 @@ Always return exactly this structure in the chat (Russian prose inside sections)
 done | partial | blocked
 
 ## Coverage intent
-- Behaviours / seams covered: …
+- Behaviours / seams covered: … (`AC-NN` …)
 - Deliberately not covered: … (со ссылкой на философию TESTING.md)
 
 ## Changes
-| Package | Test paths | Kind (unit / component / it) |
+| Package | Test paths | Kind (unit / component / it) | AC |
 
 ## Skills applied
 | Skill | Why |
@@ -119,13 +122,14 @@ done | partial | blocked
 | server unit / it | … |
 
 ## Gaps / hand-off
-- Ready for: plan-verifier, architecture-reviewer, …
+- Ready for: plan-verifier (last contract gate), pr-self-review, …
 - Open items: …
 ```
 
 ## Quality bar
 
 - Match `TESTING.md` typological intent; document deliberate gaps.
+- Every new `it(...)` cites `AC-NN` from the spec/plan.
 - Failures: fix within test scope or mark `blocked`/`partial` with evidence.
 - Untouched packages → `skip` in Verification, not a fake pass.
 - Prefer one happy path + the edge that matters per workflow over exhaustive

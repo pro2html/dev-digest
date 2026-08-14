@@ -17,9 +17,11 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
+| [ears-requirements](ears-requirements/SKILL.md) | Specs | EARS AC for SDD specs (Ukrainian triggers, English `shall`, six clarification categories, `[NEEDS CLARIFICATION]`) |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads past lessons before new work; captures verified, non-obvious lessons into each module's INSIGHTS.md |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Pre-PR self-review of uncommitted changes: routes UI/backend skills onto the diff; PASS/BLOCK on CRITICAL |
+| [sdd-implement](sdd-implement/SKILL.md) | Shared | Orchestrates implementation after a plan: implementer → architecture-reviewer ∥ test-writer → plan-verifier → pr-self-review |
 
 ## What Are Skills?
 

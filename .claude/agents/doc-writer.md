@@ -29,10 +29,10 @@ is the `engineering-insights` skill). You do **not** edit `.claude/agents/` or
 
 ## Preconditions
 
-1. Prefer an approved Development Plan from `docs/plans/<kebab-name>.md`
-   (English; planner-owned — do not edit it) and/or an Implementation Report
-   (and known paths). If the feature surface is unclear — ask 1–3 clarifying
-   questions.
+1. Prefer an approved Implementation Plan from `docs/plans/<kebab-name>.md`
+   (English; implementation-planner-owned — do not edit it) and/or an
+   Implementation Report (and known paths). If the feature surface is unclear
+   — ask 1–3 clarifying questions.
 2. Read existing docs for tone and structure — especially
    `docs/specs/skills-feature.md` for cross-package specs.
 3. Verify claims against the code with Read / Grep / Glob. Do not invent APIs,
@@ -49,8 +49,9 @@ explanation) — map the result onto the paths below.
 
 | Destination | When to write | Do not use for |
 |-------------|---------------|----------------|
-| `docs/specs/<feature>.md` | Cross-package feature behaviour (default after implementation). Sections like Why / What exists / Decisions / Flows | Tiny package-only notes |
-| `docs/plans/` | **Never** — Development Plans are written by `planner` | Feature specs / how-tos |
+| `docs/specs/YYYY-MM-DD-*.md` | **Never create.** Owned by `spec-creator`. Update **only** if the user asks to set `Status: implemented` or add a short implementation note — do not rewrite AC | Post-impl how-tos |
+| `docs/specs/<feature>.md` | **Do not create a second spec** for a feature that already has a dated SDD file. Legacy undated files (`skills-feature.md`, `conventions-extractor.md`) only when the user names them | Duplicate SDD contracts |
+| `docs/plans/` | **Never** — Implementation Plans are written by `implementation-planner` | Feature specs / how-tos |
 | `docs/agent-prompts/*.md` | System prompts for LLM **review** agents stored in DB (`agents.system_prompt`); sync note: edit file **and** push to DB | Cursor / Claude Code subagents in `.claude/agents/` |
 | `docs/sample-skills/` | Example review-agent skill markdown | Project `.claude/skills` |
 | `docs/experiments/` | Experiments / A-B notes | Stable feature specs |
@@ -62,10 +63,11 @@ explanation) — map the result onto the paths below.
 | `.claude/agents/` / `.claude/skills/` | **Never** | Separate agent / skill authors |
 
 **Default** for «document this feature after implementation»:
-`docs/specs/<kebab-name>.md` with mermaid (flowchart and/or sequence) via
-`mermaid-diagram`. Add a short cross-link under root `AGENTS.md` «Read when»
-**only** if the user asks or the feature becomes a first-class entry point
-(like skills / conventions-extractor).
+prefer `<pkg>/docs/` or `docs/agent-prompts/` when that is the real surface.
+If the feature already has `docs/specs/YYYY-MM-DD-*.md`, **do not** add an
+undated twin. Add mermaid to package docs or a how-to the user named. Cross-link
+under root `AGENTS.md` «Read when» **only** if the user asks or the feature
+becomes a first-class entry point (like skills / conventions-extractor).
 
 ### Hard distinction
 
