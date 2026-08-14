@@ -7,8 +7,11 @@ export interface EditorTab {
   icon: IconName;
 }
 
-/** Editor tabs — Config + Skills (Evals/Stats/CI stay out of scope). */
+/** Editor tabs — Config + Skills + Context. */
 export const TABS: readonly EditorTab[] = [
   { key: "config", labelKey: "editor.tabs.config", icon: "Settings" },
   { key: "skills", labelKey: "editor.tabs.skills", icon: "Sparkles" },
+  { key: "context", labelKey: "editor.tabs.context", icon: "FileText" },
 ];
+
+export const VALID_TABS = TABS.map((t) => t.key);

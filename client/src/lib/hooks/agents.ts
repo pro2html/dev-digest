@@ -120,6 +120,7 @@ export function useSetAgentSkills() {
     onSuccess: (data, { agentId }) => {
       qc.setQueryData(["agent-skills", agentId], data);
       qc.invalidateQueries({ queryKey: ["skill-stats"] });
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
   });
 }
@@ -140,6 +141,7 @@ export function useToggleAgentSkill() {
     onSuccess: (data, { agentId }) => {
       qc.setQueryData(["agent-skills", agentId], data);
       qc.invalidateQueries({ queryKey: ["skill-stats"] });
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
   });
 }
@@ -153,6 +155,7 @@ export function useUnlinkAgentSkill() {
     onSuccess: (data, { agentId }) => {
       qc.setQueryData(["agent-skills", agentId], data);
       qc.invalidateQueries({ queryKey: ["skill-stats"] });
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
   });
 }
@@ -166,6 +169,7 @@ export function useLinkAgentSkill() {
     onSuccess: (data, { agentId }) => {
       qc.setQueryData(["agent-skills", agentId], data);
       qc.invalidateQueries({ queryKey: ["skill-stats"] });
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
   });
 }

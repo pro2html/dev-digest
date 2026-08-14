@@ -20,6 +20,10 @@
     "configuration": "Configuration",
     "stats": "Stats",
     "promptAssembly": "Prompt assembly",
+    "projectContext": "Project Context",
+    "projectContextEmpty": "No project-context files were injected in this run.",
+    "projectContextTokens": "= {count} tokens",
+    "projectContextFileTokens": "{count}t",
     "toolCalls": "Tool calls",
     "rawOutput": "Raw output",
     "noToolCalls": "No tool calls recorded.",
@@ -47,7 +51,7 @@
       "skills": "Skills (dynamic)",
       "memory": "Memory (dynamic)",
       "repoMap": "Repo skeleton — repo-intel (dynamic)",
-      "specs": "Project context (dynamic)",
+      "specs": "Project context — attached specs (untrusted)",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
       "intent": "Derived intent & scope (dynamic)",
       "user": "User / diff (dynamic)",
@@ -55,7 +59,8 @@
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
       "noMatches": "No matches for “{q}”.",
-      "approxTokens": "~{count} tokens"
+      "approxTokens": "~{count} tokens",
+      "preview": "Preview"
     },
     "tools": {
       "args": "args",

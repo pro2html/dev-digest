@@ -13,6 +13,8 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { ProjectContextService } from '../project-context/service.js';
+import { specsLoadedMessage } from '../project-context/constants.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -269,6 +271,23 @@ export class ReviewRunExecutor {
         runLog.info(`skills.loaded — ${skillBodies.length} skill(s): ${names}`);
       }
 
+      // Project context — independent of repoIntelOn. Skip missing/unsafe paths;
+      // omit the specs slot when nothing remains (AC-14, AC-17, AC-19).
+      let specsRead: string[] = [];
+      let specPayloads: string[] | undefined;
+      const clonePath = repo.clonePath;
+      if (clonePath) {
+        const projectContext = new ProjectContextService(this.container);
+        const resolved = await projectContext.resolveForRun(agent.id, clonePath, {
+          info: (msg) => runLog.info(msg),
+        });
+        specsRead = resolved.specsRead;
+        specPayloads = resolved.specs;
+        if (specsRead.length > 0) {
+          runLog.info(specsLoadedMessage(specsRead));
+        }
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -288,6 +307,8 @@ export class ReviewRunExecutor {
         ...(repoMap ? { repoMap } : {}),
         // Linked skill bodies — omit when empty so the Skills section is absent.
         ...(skillBodies.length ? { skills: skillBodies } : {}),
+        // Attached project-context markdown — omit when empty (AC-14).
+        ...(specPayloads && specPayloads.length ? { specs: specPayloads } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -375,7 +396,7 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: specsRead,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

@@ -12,6 +12,11 @@ ground isn't re-covered. See `examples.md` for full good/bad entry pairs.
 This repo has **no monorepo workspace** — four standalone packages, each with
 its own `INSIGHTS.md`. Never write to one shared/global insights file.
 
+Sibling: multi-agent **process** retros (tokens, launch order, hand-off waste)
+are [workflow-retro](../workflow-retro/SKILL.md) → `docs/retro/ledger.md`.
+Run that skill **only if the user explicitly asked**; do not offer it, and do
+not put orchestration notes into package `INSIGHTS.md`.
+
 ## Routing table (real paths — verified against the repo, not assumed)
 
 | Module | Package dir | `INSIGHTS.md` | Scope signals |

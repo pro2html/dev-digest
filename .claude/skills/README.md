@@ -22,6 +22,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads past lessons before new work; captures verified, non-obvious lessons into each module's INSIGHTS.md |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Pre-PR self-review of uncommitted changes: routes UI/backend skills onto the diff; PASS/BLOCK on CRITICAL |
 | [sdd-implement](sdd-implement/SKILL.md) | Shared | Orchestrates implementation after a plan: implementer → architecture-reviewer ∥ test-writer → plan-verifier → pr-self-review |
+| [workflow-retro](workflow-retro/SKILL.md) | Shared | **Manual only.** Transcript cost/order/quality retro → chat + `docs/retro/ledger.md`. Not package INSIGHTS.md |
 
 ## What Are Skills?
 

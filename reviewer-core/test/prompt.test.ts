@@ -64,3 +64,28 @@ describe('assemblePrompt — ## PR description', () => {
     expect((assembly.pr_description as string).length).toBe(4000);
   });
 });
+
+describe('assemblePrompt — ## Project context', () => {
+  it('renders ## Project context in the user message, untrusted-wrapped, not in system (AC-13, AC-19)', () => {
+    const { messages, assembly } = assemblePrompt({
+      system: 'AGENT-SYS',
+      diff: 'DIFF',
+      specs: ['### docs/api.md\n# api'],
+    });
+    const system = messages[0]!.content;
+    const user = messages[1]!.content;
+    expect(user).toContain('## Project context');
+    expect(user).toContain('<untrusted source="spec-0">');
+    expect(user).toContain('### docs/api.md');
+    expect(system).not.toContain('## Project context');
+    expect(system).not.toContain('docs/api.md');
+    expect(assembly.specs).toContain('### docs/api.md');
+    expect(assembly.system).not.toContain('## Project context');
+  });
+
+  it('omits the section when specs is missing or empty (AC-14)', () => {
+    expect(userOf({ system: 'sys', diff: 'DIFF' })).not.toContain('## Project context');
+    expect(assemblePrompt({ system: 'sys', diff: 'DIFF' }).assembly.specs ?? null).toBeNull();
+    expect(userOf({ system: 'sys', diff: 'DIFF', specs: [] })).not.toContain('## Project context');
+  });
+});
