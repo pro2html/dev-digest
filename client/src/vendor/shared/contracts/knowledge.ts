@@ -30,8 +30,43 @@ export type Conformance = z.infer<typeof Conformance>;
 export const OnboardingLink = z.object({
   label: z.string(),
   path: z.string(),
+  note: z.string().optional(),
 });
 export type OnboardingLink = z.infer<typeof OnboardingLink>;
+
+export type OnboardingLayoutNode = {
+  name: string;
+  children?: OnboardingLayoutNode[];
+};
+
+export const OnboardingLayoutNode: z.ZodType<OnboardingLayoutNode> = z.lazy(() =>
+  z.object({
+    name: z.string(),
+    children: z.array(OnboardingLayoutNode).optional(),
+  }),
+);
+
+export const OnboardingFlowStep = z.object({
+  label: z.string(),
+  path: z.string().optional(),
+});
+export type OnboardingFlowStep = z.infer<typeof OnboardingFlowStep>;
+
+export const OnboardingFlow = z.object({
+  title: z.string(),
+  steps: z.array(OnboardingFlowStep),
+});
+export type OnboardingFlow = z.infer<typeof OnboardingFlow>;
+
+export const TaskComplexity = z.enum(['low', 'medium', 'high']);
+export type TaskComplexity = z.infer<typeof TaskComplexity>;
+
+export const OnboardingTask = z.object({
+  title: z.string(),
+  path: z.string().optional(),
+  complexity: TaskComplexity,
+});
+export type OnboardingTask = z.infer<typeof OnboardingTask>;
 
 export const OnboardingSection = z.object({
   kind: z.string(),
@@ -39,6 +74,11 @@ export const OnboardingSection = z.object({
   body: z.string(), // markdown
   diagram: z.string().nullish(), // mermaid
   links: z.array(OnboardingLink),
+  layout: OnboardingLayoutNode.optional(),
+  flows: z.array(OnboardingFlow).optional(),
+  commands: z.array(z.string()).optional(),
+  env_vars: z.array(z.string()).optional(),
+  tasks: z.array(OnboardingTask).optional(),
 });
 export type OnboardingSection = z.infer<typeof OnboardingSection>;
 
@@ -46,6 +86,12 @@ export const Onboarding = z.object({
   sections: z.array(OnboardingSection),
 });
 export type Onboarding = z.infer<typeof Onboarding>;
+
+export const OnboardingTour = Onboarding.extend({
+  generated_at: z.string().datetime().nullable(),
+  files_indexed: z.number().int(),
+});
+export type OnboardingTour = z.infer<typeof OnboardingTour>;
 
 // ---- Eval ----
 export const EvalPerTrace = z.object({

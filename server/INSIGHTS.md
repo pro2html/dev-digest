@@ -194,3 +194,24 @@ entry short (what happened, what to do instead).
 
 **Action:** Keep import I/O in `modules/project-context`. Never accept a client-supplied destination path; never persist imported markdown on attachment tables.
 
+## 2026-08-14 — Decision
+
+**Insight:** The existing `onboarding` table is already the one-tour-per-repo store (`repo_id` PK, `json` jsonb, `generated_at` timestamptz). Persist `{ sections, files_indexed }` inside `json` and bump `generated_at` on upsert — do not add a `files_indexed` column or a second tour table.
+
+**Why it matters:** The init schema already fits AC-17; a new column would force a migration on a table that has never been written. The HTTP envelope is `OnboardingTour` (`Onboarding.extend({ generated_at, files_indexed })`) so Fastify does not strip those fields (same trap as the 2026-08-14 catalog-envelope insight).
+
+**Evidence:** `server/src/db/schema/context.ts:120-126` (`onboarding` table), `server/src/modules/onboarding/repository.ts:60-71` (json overlay + `onConflictDoUpdate` on `repoId`), `server/src/modules/onboarding/routes.ts:38,59` (`response: { 200: OnboardingTour }`).
+
+**Action:** Reuse `onboarding` for the tour. Copy `isPathSafe` into `modules/onboarding/helpers.ts` — do not import `project-context/helpers` or `conventions/sampler`. Use a dedicated facts walker, not `walkClone`.
+
+## 2026-08-14 — Decision
+
+**Insight:** Onboarding generate does not require `repos.clone_path` to already be set. `ensureClone` uses a readable stored path, else recovers `git.clonePathFor({owner,name})` if that directory exists, else shallow-clones from GitHub (PAT via local `withGitHubToken`, not `repos/helpers`) and persists the path. A clone that still is not a readable directory is `clone_unavailable` 409.
+
+**Why it matters:** Add-repo clone is async; seeded/stale rows can have a disk clone with a null `clone_path`. Refusing generate in those cases blocks the tour for repos that are already cloned. Importing `repos/helpers` would be a peer-module leak.
+
+**Evidence:** `server/src/modules/onboarding/service.ts:167-200` (`ensureClone`); `server/src/modules/onboarding/helpers.ts:21-33` (`withGitHubToken`).
+
+**Action:** Keep clone recovery inside the onboarding module via `container.git` + `container.secrets`. Do not import `modules/repos`. If clone/fetch throws or the dest is missing, keep the previous tour and return `clone_unavailable`.
+
+
