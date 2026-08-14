@@ -30,7 +30,8 @@ Primary user: a **new workspace member** opening the selected repository for the
 
 - Replacing or merging with the add-repository screen at `/onboarding`.
 - Public, unauthenticated tour URLs or share tokens (no anonymous internet sharing).
-- Writing the tour markdown into the git clone / repo folder (Settings copy that mentions “tours are written to the repo folder” is out of scope here).
+- Writing the tour markdown into the git clone / repo folder (Settings copy that mentions “tours are written to the repo folder”). Studio-only storage is permanent; no follow-up spec for clone export.
+- GitHub (or any remote) deep-link on **Open**. Open is in-app clone preview only; no follow-up spec for remote links.
 - In-app editing of generated prose (no WYSIWYG, no section-by-section regenerate).
 - New MCP tools.
 - Using the tour as review-prompt context (that is Project Context / skills).
@@ -49,6 +50,8 @@ Primary user: a **new workspace member** opening the selected repository for the
 - Q: Guided reading? A: An ordered plan: which file to start with, then where to go next, so the reader does not get lost in a large project.
 - Q: First tasks? A: Recommended tasks for someone who just joined, to learn how the project works. Each task has complexity **Low / Medium / High** (низька / середня / висока) so the person can choose by confidence.
 - Q: Public share link? A: No. Share copies the current studio tour URL. Recipients still need studio access.
+- Q: Write the tour into the clone as markdown later? A: No. Studio-only storage is permanent; no follow-up spec.
+- Q: GitHub deep-link on Open later, besides in-app preview? A: No. Open stays in-app clone preview only; no follow-up spec.
 - Q: Run the rest of the SDD pipeline in this session? A: No — spec only for now.
 - Unresolved: none
 
@@ -229,7 +232,7 @@ Designs analysed (chat attachments): Onboarding Tour — architecture + TOC; cri
 - Mockup **How to run locally** is numbered commands only. Product also requires install steps and evidenced environment variables, generated from code/configs, not a README paste (AC-12, AC-13, AC-31).
 - Mockup sidebar also shows Eval Dashboard, Memory, Multi-Agent Review, Agent Performance, CI Runs. Those items are **not** this feature. Only **Onboarding Tour** is added as a Workspace destination for the selected repo. Project Context remains whatever the current studio already ships.
 - Mockup **Share link** looks like a first-class share action. This spec is clipboard copy of the studio URL, not a public token page (Clarifications).
-- Mockup **Open** does not specify GitHub vs in-app. This spec uses in-app read-only preview from the clone (local-first).
+- Mockup **Open** does not specify GitHub vs in-app. Confirmed: in-app clone preview only; no remote deep-link now or later.
 - Stale studio i18n (`generate.body` lists “overview, architecture, key modules, getting started, and conventions & gotchas”) disagrees with this spec. Canonical five parts are the kinds in AC-03.
 - Existing `Onboarding` contract has no nested layout, flows, `commands`, `env_vars`, `note`, or `complexity`. Additive shared-contract fields are in scope as a high-risk dual-copy change.
 - Add-repo `/onboarding` already steals the `onboarding-tour` nav key via a pathname substring. The tour page must be the nav target; the add-repo form must not stay highlighted as Onboarding Tour (AC-28).
@@ -308,7 +311,8 @@ Designs analysed (chat attachments): Onboarding Tour — architecture + TOC; cri
 - First tasks are onboarding/learning tasks, not imported issues. Complexity is `low` | `medium` | `high` (UI: Low / Medium / High). The studio does not auto-pick a task for the user.
 - One stored tour per repository; regenerate is a full replace.
 - Share link = copy studio URL; no public token table.
-- Open = in-app read-only preview from the clone, not a GitHub redirect.
+- Open = in-app read-only preview from the clone only. No GitHub or remote deep-link, now or later.
+- Tour storage is studio/API only. The generated tour is never written into the git clone, now or later.
 - Language of generated titles and bodies: English.
 - Generation is user-triggered, not automatic on import.
 - Index facts are optional input; clone is mandatory for generate.
@@ -318,5 +322,4 @@ Designs analysed (chat attachments): Onboarding Tour — architecture + TOC; cri
 
 ## Open questions
 
-- Should a later spec write the generated tour into the clone as markdown (the Settings “tours are written to the repo folder” line), or is studio-only storage permanent?
-- Should **Open** later deep-link to GitHub when the remote is known, in addition to in-app preview?
+- none
