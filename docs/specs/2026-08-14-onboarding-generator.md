@@ -1,6 +1,6 @@
 # Spec: Onboarding Generator
 Spec ID: SPEC-02
-Status: draft
+Status: approved
 Supersedes: none
 Packages: client, server
 
