@@ -123,3 +123,64 @@ entry short (what happened, what to do instead).
 **Evidence:** `diff-viewer/findings.ts` (`findingLinkLabel`, `markersByLine`); `CodeLine.tsx`; `page.tsx` `openFinding`; `FindingsTab` / `ReviewRunAccordion` deep-link open + scroll.
 
 **Action:** Always pass `id` on `DiffFindingMarker` from review records; wire `onOpenFinding` from the PR page through DiffTab / SmartDiffViewer / DiffViewer.
+
+## 2026-08-14 — Decision
+
+**Insight:** `@devdigest/ui` `Drawer` is `aria-modal` with a full-screen dimming overlay — it looks like a modal even though it slides from the right. Project-context file preview is a non-modal fixed `aside` (`position: fixed; right: 0`, no overlay) in `ContextAttach/PreviewSidebar.tsx`, not `Modal` and not `Drawer`.
+
+**Why it matters:** Using `Drawer` for “sidebar preview” still traps focus and greys out the agent/skill editor, which contradicts the Context-tab mockup (list stays interactive, preview is a fourth column).
+
+**Evidence:** `client/src/vendor/ui/kit/Drawer.tsx` (`aria-modal="true"` + overlay); `client/src/components/ContextAttach/PreviewSidebar.tsx:25` (`<aside>` without overlay).
+
+**Action:** For right-hand previews that must leave the rest of the page usable, copy the PreviewSidebar pattern (fixed aside + Escape). Reserve `Drawer` for blocking slide-overs (Run Trace, import).
+
+## 2026-08-14 — Decision
+
+**Insight:** `@devdigest/ui` `Markdown` is compact inline GFM (only `p` / `strong` / `code` / `a`). Combined with the global heading reset and Tailwind preflight (headings inherit size/weight, lists lose bullets and padding), a full spec/docs file looks like one undifferentiated blob. Document previews use `MarkdownDoc` (`.dd-md-doc`), not that primitive.
+
+**Why it matters:** Restyling vendor `Markdown` would also blow up FindingCard / CommentCard / skill Preview with GitHub-sized H1s. The two surfaces are different on purpose.
+
+**Evidence:** `client/src/vendor/ui/primitives/Markdown.tsx:5-13` (inline-only components); `client/src/vendor/ui/styles.css:205-211` (`h1–h4, p { margin: 0 }`); `client/src/components/MarkdownDoc/MarkdownDoc.tsx:7-12`; used by `FilePreview.tsx` and `PreviewSidebar.tsx`.
+
+**Action:** Keep vendor `Markdown` for compact cards. For a full-file Project Context preview, import `MarkdownDoc` from `@/components/MarkdownDoc`.
+
+## 2026-08-14 — Recurring Error & Fix
+
+**Insight:** `activeKeyFor` must not treat every pathname containing `/onboarding` as the Onboarding Tour nav item. Add-repository lives at `/onboarding`; the tour is only `/repos/:repoId/onboarding`.
+
+**Why it matters:** A substring check highlights Onboarding Tour while the user is on the add-repo form (AC-28) and sends g-nav to the wrong page.
+
+**Evidence:** `client/src/components/app-shell/helpers.ts:29` (`/^\/repos\/[^/]+\/onboarding(?:\/|$)/`); `client/src/components/app-shell/helpers.test.ts` (add-repo `/onboarding` → `""`).
+
+**Action:** Match the repo-scoped tour with a path regex (or `startsWith("/repos/")` + segment check). Leave `/onboarding` unmatched so it is not `onboarding-tour`.
+
+## 2026-08-14 — Decision
+
+**Insight:** Onboarding Tour **Open** is a non-modal fixed aside like Project Context, but the body is `<pre>`/monospace source — not `MarkdownDoc`. Cited files are clone source (TS, env examples, compose), not specs/docs markdown.
+
+**Why it matters:** Rendering those files through `MarkdownDoc` would mangle source and still skip binaries poorly. `Drawer` would modal-trap the tour page (see the 2026-08-14 PreviewSidebar insight).
+
+**Evidence:** `client/src/app/repos/[repoId]/onboarding/_components/OnboardingView/FilePreviewSidebar.tsx:25,48` (`<aside>` + `<pre>`).
+
+**Action:** Copy the PreviewSidebar chrome (fixed aside + Escape). Use `MarkdownDoc` only for Project Context markdown; use `<pre>` for onboarding clone preview.
+
+## 2026-08-14 — Recurring Error & Fix
+
+**Insight:** jsdom has no `IntersectionObserver`. A scroll-spy TOC that constructs it in `useEffect` will throw during RTL render even when the test never asserts the spy.
+
+**Why it matters:** The Onboarding Tour “ON THIS PAGE” nav is mounted whenever a stored tour is shown; every existing view test failed with `IntersectionObserver is not defined` until the effect bailed out.
+
+**Evidence:** `client/src/app/repos/[repoId]/onboarding/_components/OnboardingView/PageToc.tsx:21` (`typeof IntersectionObserver === "undefined"` guard); Vitest jsdom run of `OnboardingView.test.tsx`.
+
+**Action:** Guard `new IntersectionObserver` (click-to-anchor still works). Do not polyfill globally unless a test actually asserts intersection.
+
+## 2026-08-14 — Context
+
+**Insight:** `mermaid.initialize` is process-global. The architecture tour variant re-inits a custom `theme`/`themeVariables`/`themeCSS` (dark nodes, colored strokes, linear LR spacing) immediately before `parse`/`render`.
+
+**Why it matters:** A later `MermaidDiagram` with the default dark theme can inherit the last initialize if it does not call `initialize` itself. The shared component already re-inits on every effect, so each instance must keep doing that.
+
+**Evidence:** `client/src/components/mermaid-diagram/MermaidDiagram.tsx` (`ARCHITECTURE_THEME` vs `DEFAULT_THEME`, `mermaid.initialize` in the effect).
+
+**Action:** Always `initialize` in the render effect. Do not assume a previous diagram’s theme is still active — or that it isn’t.
+

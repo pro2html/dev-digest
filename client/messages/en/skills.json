@@ -126,6 +126,7 @@
     "tabs": {
       "config": "Config",
       "preview": "Preview",
+      "context": "Context",
       "stats": "Stats",
       "versions": "Versions"
     },

@@ -163,3 +163,55 @@ entry short (what happened, what to do instead).
 **Evidence:** `modules/blast/project.ts` (`MAX_CALLERS_PER_SYMBOL` per `viaSymbol`); `repo-intel/service.ts` `getDependentFiles`; `GET /pulls/:id/blast`.
 
 **Action:** New blast consumers should call `projectBlast` (or the HTTP route), not re-slice `BlastResult.callers` ad hoc; extend reverse-BFS only on the facade.
+
+## 2026-08-14 — Decision
+
+**Insight:** Project Context catalog is a live clone scan of top-level `specs`/`docs`/`insights` `*.md` via a dedicated walker — not `walkClone` (TS/JS + 400 KB cap) and not repo-intel reindex. Missing/unreadable clone is `AppError('clone_unavailable', …, 409)`, not HTTP 200 with `[]`. Empty `[]` means the clone exists and simply has no matching markdown.
+
+**Why it matters:** Reusing `walkClone` silently drops every spec file. Returning `[]` when the clone is absent makes AC-20 (unavailable) indistinguishable from AC-02 (empty catalog).
+
+**Evidence:** `server/src/modules/project-context/scan.ts:14-18` (dedicated walker); `server/src/modules/project-context/service.ts:178-183` (`clone_unavailable` 409); `server/test/project-context.test.ts` empty-clone vs listed roots.
+
+**Action:** Keep catalog I/O in `modules/project-context`. Do not call `POST /repos/:id/context/reindex` or `walkClone` for this feature. Gate the UI on `ApiError.code === 'clone_unavailable'`.
+
+## 2026-08-14 — Context
+
+**Insight:** Fastify serializes `GET /repos/:id/context` through the response Zod schema. Using `SpecFile` would strip `category` and `used_by_agents`. The catalog route must respond with `z.array(ContextCatalogFile)` (`SpecFile.extend({ category, used_by_agents })`).
+
+**Why it matters:** AC-01/AC-04 fields would vanish at the wire even if the service computed them — no typecheck failure, only a silent strip.
+
+**Evidence:** `server/src/modules/project-context/routes.ts:53` (`response: { 200: z.array(ContextCatalogFile) }`); both `vendor/shared/contracts/platform.ts` copies (`ContextCatalogFile`).
+
+**Action:** When adding fields the client needs on an existing shared object, extend a new Zod schema and point the Fastify `response` at it — do not assume extra keys survive `SpecFile`.
+
+## 2026-08-14 — Decision
+
+**Insight:** Files added from the Project Context plus button are written into the selected repo’s **clone** at `{docsRoot}/imported-context/{basename}.md` (existing top-level `docs`/`Docs` matched case-insensitively). The client filename is reduced to a basename (`*.md` only); `..` and directory components are dropped before join. File bodies stay out of the DB.
+
+**Why it matters:** Storing bodies on agent/skill rows would snapshot untrusted text (attachments are paths). Using the client path as-is would allow clone escape. The live catalog scan already includes `docs/**/*.md`, so a context refetch is enough — do not call repo-intel reindex, and do not `git commit` as a side effect of import.
+
+**Evidence:** `server/src/modules/project-context/import-file.ts` (`sanitizeImportedFilename`, `writeImportedContextFile`); `POST /repos/:id/context/files` in `routes.ts`; unit test writes `../HW1.md` → `docs/imported-context/HW1.md`.
+
+**Action:** Keep import I/O in `modules/project-context`. Never accept a client-supplied destination path; never persist imported markdown on attachment tables.
+
+## 2026-08-14 — Decision
+
+**Insight:** The existing `onboarding` table is already the one-tour-per-repo store (`repo_id` PK, `json` jsonb, `generated_at` timestamptz). Persist `{ sections, files_indexed }` inside `json` and bump `generated_at` on upsert — do not add a `files_indexed` column or a second tour table.
+
+**Why it matters:** The init schema already fits AC-17; a new column would force a migration on a table that has never been written. The HTTP envelope is `OnboardingTour` (`Onboarding.extend({ generated_at, files_indexed })`) so Fastify does not strip those fields (same trap as the 2026-08-14 catalog-envelope insight).
+
+**Evidence:** `server/src/db/schema/context.ts:120-126` (`onboarding` table), `server/src/modules/onboarding/repository.ts:60-71` (json overlay + `onConflictDoUpdate` on `repoId`), `server/src/modules/onboarding/routes.ts:38,59` (`response: { 200: OnboardingTour }`).
+
+**Action:** Reuse `onboarding` for the tour. Copy `isPathSafe` into `modules/onboarding/helpers.ts` — do not import `project-context/helpers` or `conventions/sampler`. Use a dedicated facts walker, not `walkClone`.
+
+## 2026-08-14 — Decision
+
+**Insight:** Onboarding generate does not require `repos.clone_path` to already be set. `ensureClone` uses a readable stored path, else recovers `git.clonePathFor({owner,name})` if that directory exists, else shallow-clones from GitHub (PAT via local `withGitHubToken`, not `repos/helpers`) and persists the path. A clone that still is not a readable directory is `clone_unavailable` 409.
+
+**Why it matters:** Add-repo clone is async; seeded/stale rows can have a disk clone with a null `clone_path`. Refusing generate in those cases blocks the tour for repos that are already cloned. Importing `repos/helpers` would be a peer-module leak.
+
+**Evidence:** `server/src/modules/onboarding/service.ts:167-200` (`ensureClone`); `server/src/modules/onboarding/helpers.ts:21-33` (`withGitHubToken`).
+
+**Action:** Keep clone recovery inside the onboarding module via `container.git` + `container.secrets`. Do not import `modules/repos`. If clone/fetch throws or the dest is missing, keep the previous tour and return `clone_unavailable`.
+
+

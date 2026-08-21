@@ -4,10 +4,15 @@ Project subagents in `.claude/agents/`. Each file is YAML frontmatter + system
 prompt. Invoke by name (or let the parent route via `description`). Full
 instructions live in the agent files — this README is only a map.
 
-Typical chain: **researcher** (facts) → **planner** (plan) → **implementer**
-(code) → **test-writer** (optional tests) → **plan-verifier** (plan contract) →
-**architecture-reviewer** (boundaries) → separate **security** / `pr-self-review`
-→ **doc-writer** (when docs are needed).
+Typical chain: **researcher** (optional facts) → **spec-creator** (SDD spec) →
+human approve (no `[NEEDS CLARIFICATION]`) → **implementation-planner** (plan) →
+**sdd-implement** skill (fresh chat) → **implementer** → **architecture-reviewer**
++ **test-writer** in parallel → **plan-verifier** → **pr-self-review** →
+**doc-writer** (optional; no second spec).
+
+After a plan exists, the parent must load
+[sdd-implement](../skills/sdd-implement/SKILL.md) rather than spawning
+specialists ad hoc.
 
 ## Token-efficient hand-off (low risk)
 
@@ -18,27 +23,43 @@ models as a substitute for this protocol.
 
 ### Parent / orchestrator rules
 
+Follow [sdd-implement](../skills/sdd-implement/SKILL.md) for the implementation
+chain. Short form:
+
 1. **Canon on disk, not in chat.** Point agents at `docs/plans/<kebab>.md` and
    (after impl) the Implementation Report path list. Do **not** paste the full
    plan, full research report, or full verify report into the next Task prompt.
 2. **Task prompts stay short** (path to plan + overrides + success notes). Let
    the subagent `Read` the plan file.
-3. **One verify wave** after implementer-owned checks are green: run
-   plan-verifier and architecture-reviewer in parallel once. Re-run only for
-   findings you asked to fix (scoped to those IDs/paths).
-4. **Prefer a fresh chat** for post-PASS polish / Q&A so the parent context is
-   not the entire impl history.
-5. Skip a redundant **explore** when planner can read the repo; use researcher
-   only when external facts or a non-obvious repo map are needed. Do **not**
-   resume a heavy explore transcript into planner — start planner with the
-   research brief path or bullets instead.
+3. **Read Execution mode** on the Implementation Plan before spawning anyone:
+   - **multi-agent** — spawn specialists in order: `implementer` →
+     `architecture-reviewer` **and** `test-writer` in parallel → `plan-verifier`
+     **last** (once) → optionally `pr-self-review` then `doc-writer`.
+     Architecture-reviewer is boundaries only; logic bugs are `pr-self-review`.
+   - **single-agent** — one agent executes Approach + tests; do **not** spawn
+     `implementer`, `test-writer`, `architecture-reviewer`, or `doc-writer`.
+     Still spawn read-only **`plan-verifier`** after that pass.
+4. **One plan-verifier run** after implementer-owned checks are green **and**
+   test-writer (multi-agent) has finished; fix CRITICAL architecture findings
+   first. Re-run plan-verifier only for findings you asked to fix (scoped to
+   those IDs/paths). Do not re-run full test suites when reports already pass.
+5. **Prefer a fresh chat** for implementer (and for post-PASS polish) so the
+   parent context is not the entire spec/plan history.
+6. Skip a redundant **explore** when implementation-planner can read the repo;
+   use researcher only when external facts or a non-obvious repo map are
+   needed. Do **not** resume a heavy explore transcript into
+   implementation-planner — start it with the research brief path or bullets
+   instead. Specs come from **spec-creator**; implementation-planner does not
+   clarify product requirements and does not plan a `draft` with
+   `[NEEDS CLARIFICATION]` markers unless the user overrides.
 
 ### Artifact size limits (chat)
 
 | From → to | Chat artifact | Limit |
 |-----------|---------------|-------|
-| researcher → planner / parent | Research brief (bullets + key paths/URLs) | ≤ ~400 words; full detail only if asked |
-| planner → parent / implementer | Russian Summary + `Plan file:` path | **No** full English plan in chat |
+| researcher → spec-creator / parent | Research brief (bullets + key paths/URLs) | ≤ ~400 words; full detail only if asked |
+| spec-creator → implementation-planner / parent | Russian Summary + `Spec file:` path | **No** full English spec in chat |
+| implementation-planner → parent / implementer | Russian Summary + `Plan file:` path | **No** full English plan in chat |
 | implementer → verifiers / parent | Implementation Report (existing template) with explicit **Changed paths** | Prefer path table over narrative dumps |
 | plan-verifier / architecture-reviewer → parent | Verdict + findings table | Prefer findings only; no plan restatement |
 
@@ -54,7 +75,8 @@ re-reading unrelated packages.
 | Agent | Model | Role | Mutates repo? |
 |-------|-------|------|---------------|
 | [researcher](researcher.md) | `sonnet` | Repo + external research | No |
-| [planner](planner.md) | `grok` | Structured Development Plan → `docs/plans/` | Yes (`docs/plans/` only) |
+| [spec-creator](spec-creator.md) | `grok` | SDD spec (EARS) → `docs/specs/YYYY-MM-DD-*.md` | Yes (`docs/specs/` only) |
+| [implementation-planner](implementation-planner.md) | `grok` | Implementation Plan (AC-traced) → `docs/plans/` | Yes (`docs/plans/` only) |
 | [implementer](implementer.md) | `grok` | Execute approved plan | Yes |
 | [test-writer](test-writer.md) | `grok` | UI / backend tests | Yes (tests) |
 | [plan-verifier](plan-verifier.md) | `sonnet` | Verify code vs plan checklist | No |
@@ -73,44 +95,78 @@ sources. No implementation.
 | **Tools** | `Read`, `Grep`, `Glob`, `WebSearch`, `WebFetch` |
 | **Denied** | `Write`, `Edit`, `NotebookEdit`, `Bash` |
 | **Input** | Concrete research question (clarifies first if vague) |
-| **Output** | Research report in chat; for hand-off to planner prefer a short **brief** (see agent file) |
+| **Output** | Research report in chat; for hand-off to spec-creator / implementation-planner prefer a short **brief** (see agent file) |
 
 ---
 
-## planner
+## spec-creator
 
-**Responsibility.** Produce an executable Development Plan aligned with modules,
-project skills, `INSIGHTS.md`, and architectural constraints. Persists the plan
-under `docs/plans/`. Does not write product code or run shell.
+**Responsibility.** Produce an SDD feature spec (what / why: behaviour, EARS AC,
+workflows, service communication, contracts). Six clarification categories;
+`[NEEDS CLARIFICATION]` instead of guesses. May **read** `devdigest` MCP
+(`list_agents`, `get_conventions`, `get_findings`; never `run_agent_on_pr`).
+Persists under `docs/specs/YYYY-MM-DD-<kebab-feature>.md` (flat; `SPEC-NN` in
+the body). Does not write product code, Implementation Plans, or implementation
+recipes. Does not rewrite legacy narrative specs unless explicitly asked.
+Alias: spec-planner.
+
+| | |
+|---|---|
+| **Tools** | `Read`, `Grep`, `Glob`, `Write`, `Edit`, `Skill`, read-only `devdigest` MCP |
+| **Denied** | `NotebookEdit`, `Bash`, `Agent`; MCP write (`run_agent_on_pr`) |
+| **permissionMode** | `acceptEdits` |
+| **Preloaded skills** | `ears-requirements`, `mermaid-diagram`. (On-demand: onion / frontend-ui / security / Fastify / Drizzle / Postgres / Next / React / `zod` / `typescript-expert`. Never: `react-testing-library`, `pr-self-review`, `engineering-insights`.) |
+| **Input** | Feature / change request; optional design/mockups; research brief |
+| **Output** | English file `docs/specs/YYYY-MM-DD-<kebab-feature>.md` + Russian summary in chat |
+
+### Rule sources (spec-creator)
+
+| Practice | Source |
+|----------|--------|
+| Persist SDD specs | [`docs/specs/`](../../docs/specs/) (`spec-creator`; not legacy narrative rewrites) |
+| EARS AC, six categories, `[NEEDS CLARIFICATION]` | [ears-requirements](../skills/ears-requirements/SKILL.md) |
+| Workflow / sequence diagrams | [mermaid-diagram](../skills/mermaid-diagram/SKILL.md) |
+| Module / UI boundaries as constraints (on-demand) | [onion-architecture](../skills/onion-architecture/SKILL.md), [frontend-ui-architecture](../skills/frontend-ui-architecture/SKILL.md) |
+| Untrusted inputs / access as requirements (on-demand) | [security](../skills/security/SKILL.md) |
+
+---
+
+## implementation-planner
+
+**Responsibility.** Produce an executable Implementation Plan from an existing
+SDD spec (`SPEC-NN`, `AC-01`…). Every plan task cites an AC-ID. Persists under
+`docs/plans/`. Does not write product code, specs, or clarify requirements
+(that is spec-creator). Refuses `draft` specs with `[NEEDS CLARIFICATION]`
+unless the user overrides. Asks **Execution mode** (multi- vs single-agent).
 
 | | |
 |---|---|
 | **Tools** | `Read`, `Grep`, `Glob`, `Write`, `Edit`, `Skill` |
 | **Denied** | `NotebookEdit`, `Bash`, `Agent` |
 | **permissionMode** | `acceptEdits` |
-| **Preloaded skills** | Architecture: `onion-architecture`, `frontend-ui-architecture`, `mermaid-diagram`. Backend: `fastify-best-practices`, `drizzle-orm-patterns`, `postgresql-table-design`. Frontend: `next-best-practices`, `react-best-practices`, `react-testing-library`. Cross: `zod`, `typescript-expert`, `security`. (Not preloaded: `engineering-insights`, `pr-self-review`.) |
-| **Input** | Feature / change request with enough success criteria |
-| **Output** | English file `docs/plans/<kebab-name>.md` (canonical: goal, modules, constraints, phases, **Skill routing**, verification) + Russian summary in chat |
+| **Preloaded skills** | `onion-architecture`, `frontend-ui-architecture`, `mermaid-diagram`. Stack skills on-demand from `Packages:` (Fastify/Drizzle/Postgres/Next/React/RTL/`zod`/`typescript-expert`/`security`). Not preloaded: `engineering-insights`, `pr-self-review`. |
+| **Input** | SDD spec path with `AC-01`… (`docs/specs/YYYY-MM-DD-*.md`); Execution mode if already chosen |
+| **Output** | English file `docs/plans/<kebab-name>.md` (spec source, execution mode, **AC coverage**, phases with `AC:`, Skill routing, verification) + Russian summary in chat |
 
-### Rule sources (planner)
+### Rule sources (implementation-planner)
 
 | Practice | Source |
 |----------|--------|
 | Subagent file format, `description` routing, tool allow/deny, `permissionMode`, `skills` preload, focused one-task agents, chain workflows | [Claude Code: Create custom subagents](https://code.claude.com/docs/en/sub-agents) |
 | When to use subagents vs skills; policy for repeated workflows | [Anthropic: How and when to use subagents](https://claude.com/blog/subagents-in-claude-code) |
-| Clarify-before-work + fixed report shape | Local pattern: [researcher.md](researcher.md) |
+| Spec as product contract; no requirements Q&A | [spec-creator.md](spec-creator.md), [ears-requirements](../skills/ears-requirements/SKILL.md) |
 | Module map, `INSIGHTS.md`, do-not-touch `@devdigest/shared`, per-package scripts/tests | Root [`AGENTS.md`](../../AGENTS.md), [`TESTING.md`](../../TESTING.md), [engineering-insights](../skills/engineering-insights/SKILL.md) |
 | Skill routing targets | Catalog in [../skills/README.md](../skills/README.md) |
-| Persist plans | [`docs/plans/`](../../docs/plans/) (planner-only; not `doc-writer`) |
+| Persist plans | [`docs/plans/`](../../docs/plans/) (implementation-planner-only; not `doc-writer` / `spec-creator`) |
 
 ---
 
 ## implementer
 
-**Responsibility.** Implement an **approved** Development Plan in frontend and/or
-backend, load skills from the plan’s Skill routing, run tests for touched
-packages, self-check within implementation only. Architecture and security
-review are out of scope.
+**Responsibility.** Implement an **approved** Implementation Plan in frontend and/or
+backend, load skills from the plan’s Skill routing, run **targeted** typecheck /
+vitest on touched files (not a full package suite), self-check within
+implementation only. Architecture and security review are out of scope.
 
 | | |
 |---|---|
@@ -125,9 +181,9 @@ review are out of scope.
 
 | Practice | Source |
 |----------|--------|
-| Tool least privilege, `acceptEdits`, no nested `Agent`, sequential hand-off from planner | [Claude Code: Create custom subagents](https://code.claude.com/docs/en/sub-agents) |
+| Tool least privilege, `acceptEdits`, no nested `Agent`, sequential hand-off from implementation-planner | [Claude Code: Create custom subagents](https://code.claude.com/docs/en/sub-agents) |
 | Skills as on-demand procedures; subagent for isolated implementation context | [Anthropic: How and when to use subagents](https://claude.com/blog/subagents-in-claude-code) |
-| Plan-as-contract, verification only for touched packages, no drive-by scope | Root [`AGENTS.md`](../../AGENTS.md), [`TESTING.md`](../../TESTING.md) |
+| Plan-as-contract, targeted typecheck/vitest for touched files, no drive-by scope | Root [`AGENTS.md`](../../AGENTS.md), [`TESTING.md`](../../TESTING.md) |
 | Defer architecture / security / pre-PR review / plan check / docs | [architecture-reviewer](architecture-reviewer.md), [plan-verifier](plan-verifier.md), [doc-writer](doc-writer.md), [security](../skills/security/SKILL.md), [pr-self-review](../skills/pr-self-review/SKILL.md) |
 | Capture lessons after non-trivial work | [engineering-insights](../skills/engineering-insights/SKILL.md) |
 
@@ -136,8 +192,9 @@ review are out of scope.
 ## test-writer
 
 **Responsibility.** Write focused UI and backend tests after implementation,
-following `TESTING.md` (typological seams). Does not implement product features
-or run architecture review.
+following `TESTING.md` (typological seams). Each new test cites `AC-NN`. Does
+not implement product features or run architecture review. Runs in parallel
+with architecture-reviewer; plan-verifier comes after.
 
 | | |
 |---|---|
@@ -145,7 +202,7 @@ or run architecture review.
 | **Denied** | `Agent` |
 | **permissionMode** | `acceptEdits` |
 | **Preloaded skills** | `react-testing-library` (on-demand: `react-best-practices`, `fastify-best-practices`, `zod`, `onion-architecture`) |
-| **Input** | Plan / Implementation Report / behaviours to cover |
+| **Input** | Plan / Implementation Report / `AC-NN` to cover |
 | **Output** | Test files + Test Report in chat (Russian) |
 
 ### Rule sources (test-writer)
@@ -161,9 +218,10 @@ or run architecture review.
 ## plan-verifier
 
 **Responsibility.** Verify implemented code against **every** item of an
-approved Development Plan (success criteria, phases, skill routing,
-verification commands). Structured pass/fail with evidence — not generic
-advice.
+approved Implementation Plan (AC coverage, phases with AC-IDs, skill routing,
+verification commands). Run **last** after implementer + test-writer (and after
+CRITICAL architecture fixes). Trust existing pass reports; do not re-run full
+suites by default. Structured pass/fail with evidence — not generic advice.
 
 | | |
 |---|---|
@@ -171,7 +229,7 @@ advice.
 | **Denied** | `Write`, `Edit`, `NotebookEdit`, `Agent` |
 | **permissionMode** | `plan` |
 | **Preloaded skills** | none (on-demand from plan Skill routing) |
-| **Input** | Plan path `docs/plans/…` + optional Implementation Report (**Changed paths**) |
+| **Input** | Plan path `docs/plans/…` + Implementation Report (**Changed paths**) + Test Report |
 | **Output** | Plan Verification report in chat (Russian): overall + per-item table |
 
 ### Rule sources (plan-verifier)
@@ -186,9 +244,10 @@ advice.
 
 ## architecture-reviewer
 
-**Responsibility.** Read-only architecture boundary review (Onion, frontend UI
-layout, package / shared boundaries). Findings require `path:lines` evidence.
-Does not rewrite code.
+**Responsibility.** Read-only architecture **boundary** review (Onion, frontend
+UI layout, package / shared boundaries). After implementer, parallel with
+test-writer, **before** plan-verifier. Findings require `path:lines` evidence.
+Does not rewrite code and is not a logic-bug hunt (`pr-self-review`).
 
 | | |
 |---|---|
@@ -212,8 +271,9 @@ Does not rewrite code.
 ## doc-writer
 
 **Responsibility.** Document implemented features under `docs/` (and package
-docs) with mermaid diagrams. Knows the destination map. Does not write
-`INSIGHTS.md` or product code.
+docs) with mermaid diagrams. Knows the destination map. Does **not** create a
+second undated spec next to a dated SDD file. Does not write `INSIGHTS.md` or
+product code.
 
 | | |
 |---|---|

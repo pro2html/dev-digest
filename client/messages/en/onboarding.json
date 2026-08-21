@@ -1,17 +1,70 @@
 {
   "title": "Onboarding Tour",
-  "sections": "Sections",
-  "sectionCount": "{count} sections",
+  "pageTitleLead": "Onboarding for",
+  "pageTitle": "Onboarding for {repo}",
+  "subtitle": "Generated from index of {count} files · {relative}",
+  "subtitleUnavailable": "Generated from index of 0 files (unavailable) · {relative}",
   "regenerate": "Regenerate",
   "regenerating": "Regenerating…",
+  "generating": "Generating…",
+  "share": "Share link",
+  "copied": "Copied",
+  "copyFailed": "Copy failed",
+  "open": "Open",
   "unknownError": "Unknown error",
+  "toc": "On this page",
+  "sections": {
+    "architecture": "Architecture overview",
+    "critical_paths": "Critical paths",
+    "local_setup": "How to run locally",
+    "reading_path": "Guided reading path",
+    "first_tasks": "First tasks"
+  },
+  "architecture": {
+    "layout": "Where code lives"
+  },
+  "flows": {
+    "empty": "No application flows in this tour."
+  },
+  "local": {
+    "install": "Install",
+    "commands": "Commands",
+    "env": "Environment variables",
+    "envEmpty": "No evidenced environment variables.",
+    "commandsEmpty": "No commands recorded.",
+    "copy": "Copy"
+  },
+  "reading": {
+    "start": "Start here",
+    "next": "Read next",
+    "empty": "No reading steps in this tour."
+  },
+  "tasks": {
+    "intro": "Recommended work for someone who just joined, to learn how the project works. Pick a task by your own confidence — nothing is hidden by complexity.",
+    "empty": "No first tasks in this tour.",
+    "complexity": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
+  },
+  "preview": {
+    "unavailable": "This file is unavailable in the clone.",
+    "loading": "Loading preview…",
+    "close": "Close"
+  },
   "generate": {
     "title": "Generate onboarding tour",
-    "body": "DevDigest indexes the repo and specs, then writes a 5-section guided tour: overview, architecture, key modules, getting started, and conventions & gotchas.",
+    "body": "Writes a five-part tour of this repository: architecture overview, critical paths, how to run locally, a guided reading path, and first tasks.",
     "cta": "Generate onboarding tour",
     "generating": "Generating…"
   },
+  "errors": {
+    "cloneUnavailable": "The repository clone is required to generate a tour. The previous tour is unchanged.",
+    "generationFailed": "Generation failed. The previous tour is unchanged."
+  },
   "loadError": {
     "title": "Couldn’t load the onboarding tour"
-  }
+  },
+  "emptyInSection": "Nothing listed for this part."
 }

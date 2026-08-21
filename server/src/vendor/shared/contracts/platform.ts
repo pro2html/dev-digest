@@ -277,6 +277,44 @@ export const SpecFile = z.object({
 });
 export type SpecFile = z.infer<typeof SpecFile>;
 
+export const ContextCategory = z.enum(['specs', 'docs', 'insights']);
+export type ContextCategory = z.infer<typeof ContextCategory>;
+
+/** Catalog row: SpecFile plus discovery category and used-by count (AC-01, AC-04). */
+export const ContextCatalogFile = SpecFile.extend({
+  category: ContextCategory,
+  used_by_agents: z.number().int(),
+});
+export type ContextCatalogFile = z.infer<typeof ContextCatalogFile>;
+
+export const AgentContextAttachment = z.object({
+  path: z.string(),
+  order: z.number().int(),
+});
+export type AgentContextAttachment = z.infer<typeof AgentContextAttachment>;
+
+export const SkillContextAttachment = z.object({
+  path: z.string(),
+});
+export type SkillContextAttachment = z.infer<typeof SkillContextAttachment>;
+
+export const AgentContextList = z.object({
+  documents: z.array(AgentContextAttachment),
+});
+export type AgentContextList = z.infer<typeof AgentContextList>;
+
+export const SkillContextList = z.object({
+  documents: z.array(SkillContextAttachment),
+});
+export type SkillContextList = z.infer<typeof SkillContextList>;
+
+/** Body for POST /repos/:id/context/files — write markdown into the clone. */
+export const ContextImportFile = z.object({
+  filename: z.string().min(1).max(255),
+  content: z.string().max(2_000_000),
+});
+export type ContextImportFile = z.infer<typeof ContextImportFile>;
+
 export const IndexStatus = z.object({
   status: z.enum(['idle', 'cloning', 'parsing', 'embedding', 'done', 'error']),
   pct: z.number().min(0).max(100),

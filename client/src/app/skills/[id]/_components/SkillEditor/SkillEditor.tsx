@@ -1,4 +1,4 @@
-/* SkillEditor — Config / Preview / Stats / Versions tabs. Tab state lives in ?tab=. */
+/* SkillEditor — Config / Preview / Context / Stats / Versions tabs. Tab state lives in ?tab=. */
 "use client";
 
 import React from "react";
@@ -7,6 +7,7 @@ import { Tabs } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { ConfigTab } from "./_components/ConfigTab";
 import { PreviewTab } from "./_components/PreviewTab";
+import { ContextTab } from "./_components/ContextTab";
 import { StatsTab } from "./_components/StatsTab";
 import { VersionsTab } from "./_components/VersionsTab";
 import { TABS } from "./constants";
@@ -23,6 +24,8 @@ export function SkillEditor({ skill, tab, onTab }: { skill: Skill; tab: string; 
       <div style={s.body}>
         {tab === "preview" ? (
           <PreviewTab skill={skill} />
+        ) : tab === "context" ? (
+          <ContextTab skill={skill} />
         ) : tab === "stats" ? (
           <StatsTab skillId={skill.id} />
         ) : tab === "versions" ? (

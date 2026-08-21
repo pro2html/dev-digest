@@ -28,6 +28,9 @@ host via `pnpm dev` inside each package.
 - Working on a specific package's conventions/gotchas → its own
   `<package>/AGENTS.md`
 - Writing/using LLM reviewer agent prompts → [`docs/agent-prompts/`](docs/agent-prompts/README.md)
+- Writing SDD feature specs (`spec-creator`) → [`docs/specs/`](docs/specs/README.md)
+- Writing implementation plans (`implementation-planner`) → [`docs/plans/`](docs/plans/README.md)
+- Executing an approved plan (`sdd-implement`) → [`.claude/skills/sdd-implement/`](.claude/skills/sdd-implement/SKILL.md)
 - Implementing the Skills feature (review-agent skills) → [`docs/specs/skills-feature.md`](docs/specs/skills-feature.md)
 - Implementing the Conventions Extractor (repo → convention skills) →
  [`docs/specs/conventions-extractor.md`](docs/specs/conventions-extractor.md)

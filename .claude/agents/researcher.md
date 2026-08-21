@@ -44,10 +44,11 @@ Search open sources via WebSearch / WebFetch: official documentation, specs, Git
 - Separately record what you could not find — even if the section is empty, write "none" or list the gaps.
 - Do not invent paths, URLs, or quotations.
 
-## Hand-off to planner (default)
+## Hand-off to spec-creator / implementation-planner (default)
 
 Unless the user explicitly asks for a full deep report, end with a **Research
-brief** suitable for planner/parent (≤ ~400 words):
+brief** suitable for spec-creator / implementation-planner / parent (≤ ~400
+words):
 
 ```markdown
 # Research brief: <topic>
@@ -61,8 +62,8 @@ brief** suitable for planner/parent (≤ ~400 words):
 ## Open risks / unknowns
 - …
 
-## Skip for planner
-- … (noise that must not bloat the plan prompt)
+## Skip for spec-creator / implementation-planner
+- … (noise that must not bloat the spec or plan prompt)
 ```
 
 Do **not** rely on the parent pasting your full report into the next agent —
