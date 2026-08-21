@@ -5,8 +5,10 @@ import { useTranslations } from "next-intl";
 import { SectionLabel, Button } from "@devdigest/ui";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment, usePrReviews } from "@/lib/hooks/reviews";
+import { usePrBrief } from "@/lib/hooks/brief";
 import { notify } from "@/lib/toast";
 import type { FindingRecord, PrFile } from "@devdigest/shared";
+import { buildRiskMarkersByPath } from "../IntentCard/helpers";
 import { SmartDiffViewer } from "../SmartDiffViewer";
 
 type DiffOrder = "smart" | "original";
@@ -19,13 +21,25 @@ interface DiffTabProps {
   canComment?: boolean;
   /** Open Agent runs and scroll to the finding card. */
   onOpenFinding?: (findingId: string) => void;
+  /** Why+Risk / citation focus (`?file=` / `?line=`). */
+  focusFile?: string | null;
+  focusLine?: number | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: DiffTabProps) {
+export function DiffTab({
+  prId,
+  filesCount,
+  files,
+  canComment,
+  onOpenFinding,
+  focusFile,
+  focusLine,
+}: DiffTabProps) {
   const t = useTranslations("prReview.smartDiff");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
   const { data: reviews } = usePrReviews(prId);
+  const { data: briefRecord } = usePrBrief(prId);
   // Comments start hidden so the diff is clean by default — toggle to reveal.
   const [showComments, setShowComments] = React.useState(false);
   const [order, setOrder] = React.useState<DiffOrder>("smart");
@@ -36,6 +50,14 @@ export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: 
   const latestFindings: FindingRecord[] = React.useMemo(
     () => reviews?.[0]?.findings ?? [],
     [reviews],
+  );
+  const risksByPath = React.useMemo(
+    () =>
+      buildRiskMarkersByPath(
+        briefRecord?.brief?.risks ?? [],
+        briefRecord?.brief?.review_focus ?? [],
+      ),
+    [briefRecord?.brief?.risks, briefRecord?.brief?.review_focus],
   );
 
   const commenting: DiffCommentApi = {
@@ -97,6 +119,9 @@ export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: 
           findings={latestFindings}
           commenting={commenting}
           onOpenFinding={onOpenFinding}
+          focusFile={focusFile}
+          focusLine={focusLine}
+          risksByPath={risksByPath}
         />
       ) : (
         <DiffViewer
@@ -104,6 +129,9 @@ export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: 
           commenting={commenting}
           findings={latestFindings}
           onOpenFinding={onOpenFinding}
+          focusFile={focusFile}
+          focusLine={focusLine}
+          risksByPath={risksByPath}
         />
       )}
     </section>

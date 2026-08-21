@@ -4,17 +4,18 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button, Icon, Skeleton } from "@devdigest/ui";
 import { usePrIntent, useDerivePrIntent } from "@/lib/hooks/intent";
+import { useGeneratePrBrief, usePrBrief } from "@/lib/hooks/brief";
+import { changedPathSet } from "./helpers";
+import { RiskAreas } from "./RiskAreas";
 import { s } from "./styles";
 
 interface IntentCardProps {
   prId: string | null;
   /** Compact layout for Findings tab (lists truncated). */
   compact?: boolean;
-  /**
-   * Optional risk chips (L05 brief). When empty/omitted the Risk areas block
-   * is hidden — Intent Layer does not invent risks.
-   */
-  risks?: { label: string; icon?: "Shield" | "Link" | "Zap" | "AlertTriangle"; color?: string }[];
+  /** Changed-file paths — Risk Areas file citations navigate into Files changed. */
+  changedPaths?: string[];
+  onFocusFile?: (path: string, line?: number) => void;
 }
 
 function qualityColor(q: string | null | undefined): string {
@@ -85,10 +86,36 @@ function CardChrome({
   );
 }
 
-export function IntentCard({ prId, compact = false, risks }: IntentCardProps) {
+export function IntentCard({
+  prId,
+  compact = false,
+  changedPaths = [],
+  onFocusFile,
+}: IntentCardProps) {
   const t = useTranslations("prReview.intent");
   const { data, isLoading, isError, refetch } = usePrIntent(prId);
   const derive = useDerivePrIntent(prId);
+  const briefQuery = usePrBrief(compact ? null : prId);
+  const generate = useGeneratePrBrief(compact ? null : prId);
+  const briefRisks = briefQuery.data?.brief?.risks ?? [];
+  const changed = React.useMemo(() => changedPathSet(changedPaths), [changedPaths]);
+  const generateMutate = generate.mutate;
+
+  React.useEffect(() => {
+    if (compact || !data) return;
+    if (!briefQuery.isSuccess) return;
+    if (briefQuery.data?.brief != null) return;
+    if (generate.isPending || generate.isError) return;
+    generateMutate();
+  }, [
+    compact,
+    data,
+    briefQuery.isSuccess,
+    briefQuery.data?.brief,
+    generate.isPending,
+    generate.isError,
+    generateMutate,
+  ]);
 
   const onRerun = () => {
     if (!prId) return;
@@ -159,9 +186,10 @@ export function IntentCard({ prId, compact = false, risks }: IntentCardProps) {
   }
 
   const quality = data.context_quality ?? null;
-  const missing = data.missing_context ?? [];
   const listLimit = compact ? 3 : undefined;
-  const showRisks = (risks?.length ?? 0) > 0;
+  const risksPending = !compact && (briefQuery.isLoading || generate.isPending);
+  const risksFailed = !compact && (briefQuery.isError || generate.isError);
+  const showRisks = !compact && onFocusFile != null && (briefRisks.length > 0 || risksPending || risksFailed);
 
   return (
     <section>
@@ -201,34 +229,20 @@ export function IntentCard({ prId, compact = false, risks }: IntentCardProps) {
           </div>
         </div>
 
-        {showRisks && (
-          <>
-            <hr style={s.divider} />
-            <div style={s.risksBlock}>
-              <div style={s.risksHead}>
-                <Icon.AlertTriangle size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                <span style={s.risksTitle}>{t("riskAreas")}</span>
-              </div>
-              <div style={s.riskChips}>
-                {risks!.map((chip, i) => {
-                  const I = Icon[chip.icon ?? "AlertTriangle"];
-                  return (
-                    <span key={`${chip.label}-${i}`} style={s.riskChip}>
-                      <I size={12} style={{ color: chip.color ?? "var(--warn)", flexShrink: 0 }} />
-                      {chip.label}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
-
-        {missing.length > 0 && (
-          <div style={s.warnings}>
-            <span>{t("missingContext", { items: missing.join(", ") })}</span>
-          </div>
-        )}
+        {showRisks && onFocusFile ? (
+          <RiskAreas
+            risks={briefRisks}
+            changed={changed}
+            title={t("riskAreas")}
+            pending={risksPending}
+            pendingLabel={t("risksGenerating")}
+            failed={risksFailed && !risksPending}
+            failedLabel={t("risksFailed")}
+            retryLabel={t("risksRetry")}
+            onRetry={() => generate.mutate()}
+            onFocusFile={onFocusFile}
+          />
+        ) : null}
       </CardChrome>
     </section>
   );

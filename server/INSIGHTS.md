@@ -214,4 +214,14 @@ entry short (what happened, what to do instead).
 
 **Action:** Keep clone recovery inside the onboarding module via `container.git` + `container.secrets`. Do not import `modules/repos`. If clone/fetch throws or the dest is missing, keep the previous tour and return `clone_unavailable`.
 
+## 2026-08-14 — Context
+
+**Insight:** `@fastify/rate-limit` rejects with `statusCode: 429` but is not an `AppError`. The shared error handler used to map those to `internal_error` even though the HTTP status was 429.
+
+**Why it matters:** Per-route caps (onboarding generate, Why+Risk Brief POST, conventions) advertise a `rate_limited` family in specs. Clients branching on `ApiError.code` would miss the 429 unless the handler maps it before the generic fallback.
+
+**Evidence:** `server/src/app.ts:159-165` (`statusCode === 429` → `{ error: { code: 'rate_limited' } }`); route configs such as `server/src/modules/brief/routes.ts` and `server/src/modules/onboarding/routes.ts` (`rateLimit max: 3`).
+
+**Action:** Keep the 429 → `rate_limited` branch in the global error handler, after `AppError` and before the `internal_error` fallback. Do not rely on Fastify's default error body.
+
 

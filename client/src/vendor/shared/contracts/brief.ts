@@ -166,3 +166,41 @@ export const PrBrief = z.object({
   history: PrHistory,
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+/**
+ * Why+Risk Brief product document (Overview card). Distinct from composed
+ * `PrBrief` — do not persist or return `{ intent, blast, risks, history }`.
+ * Risk rows here do not require `Risk.kind`.
+ */
+export const WhyRiskItem = z.object({
+  title: z.string(),
+  explanation: z.string().optional(),
+  severity: RiskSeverity.optional(),
+  file_refs: z.array(z.string()),
+});
+export type WhyRiskItem = z.infer<typeof WhyRiskItem>;
+
+export const WhyRiskFocusItem = z.object({
+  path: z.string(),
+  line_start: z.number().int().optional(),
+  line_end: z.number().int().optional(),
+  reason: z.string(),
+});
+export type WhyRiskFocusItem = z.infer<typeof WhyRiskFocusItem>;
+
+export const WhyRiskBrief = z.object({
+  what: z.string(),
+  why: z.string(),
+  risk_level: RiskSeverity,
+  risks: z.array(WhyRiskItem),
+  review_focus: z.array(WhyRiskFocusItem),
+});
+export type WhyRiskBrief = z.infer<typeof WhyRiskBrief>;
+
+export const WhyRiskBriefRecord = z.object({
+  pr_id: z.string(),
+  generated_for_sha: z.string().nullable(),
+  stale: z.boolean(),
+  brief: WhyRiskBrief.nullable(),
+});
+export type WhyRiskBriefRecord = z.infer<typeof WhyRiskBriefRecord>;

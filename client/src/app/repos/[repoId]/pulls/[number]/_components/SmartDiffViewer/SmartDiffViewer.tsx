@@ -8,6 +8,7 @@ import {
   FileCard,
   type DiffCommentApi,
   type DiffFindingMarker,
+  type DiffRiskMarker,
 } from "@/components/diff-viewer";
 import { useSmartDiff } from "@/lib/hooks/smart-diff";
 import {
@@ -40,6 +41,9 @@ function GroupBlock({
   findingMap,
   commenting,
   onOpenFinding,
+  focusFile,
+  focusLine,
+  risksByPath,
 }: {
   role: SmartDiffRole;
   files: SmartDiffFile[];
@@ -47,6 +51,9 @@ function GroupBlock({
   findingMap: Map<string, DiffFindingMarker[]>;
   commenting?: DiffCommentApi;
   onOpenFinding?: (findingId: string) => void;
+  focusFile?: string | null;
+  focusLine?: number | null;
+  risksByPath?: Map<string, DiffRiskMarker[]>;
 }) {
   const t = useTranslations("prReview.smartDiff");
   const IconComp = Icon[ROLE_ICON[role]];
@@ -71,17 +78,22 @@ function GroupBlock({
             patch: null,
           };
           const markers = joinFindings(sf, findingMap);
+          const risks = risksByPath?.get(key) ?? [];
+          const focused = focusFile != null && key === normalizePath(focusFile);
           return (
             <FileCard
               key={sf.path}
               file={prFile}
               commenting={commenting}
               findings={markers}
-              defaultOpen={defaultOpenFor(role, sf, prByPath.get(key))}
+              risks={risks}
+              defaultOpen={defaultOpenFor(role, sf, prByPath.get(key)) || risks.length > 0}
+              forceOpen={focused}
               findingsBadgeLabel={
                 markers.length > 0 ? t("findingsBadge", { count: markers.length }) : undefined
               }
               onOpenFinding={onOpenFinding}
+              focusLine={focused ? focusLine : null}
             />
           );
         })}
@@ -119,6 +131,9 @@ interface SmartDiffViewerProps {
   findings: FindingRecord[];
   commenting?: DiffCommentApi;
   onOpenFinding?: (findingId: string) => void;
+  focusFile?: string | null;
+  focusLine?: number | null;
+  risksByPath?: Map<string, DiffRiskMarker[]>;
 }
 
 export function SmartDiffViewer({
@@ -127,6 +142,9 @@ export function SmartDiffViewer({
   findings,
   commenting,
   onOpenFinding,
+  focusFile,
+  focusLine,
+  risksByPath,
 }: SmartDiffViewerProps) {
   const t = useTranslations("prReview.smartDiff");
   const { data, isLoading, isError, refetch } = useSmartDiff(prId);
@@ -169,6 +187,9 @@ export function SmartDiffViewer({
           findingMap={findingMap}
           commenting={commenting}
           onOpenFinding={onOpenFinding}
+          focusFile={focusFile}
+          focusLine={focusLine}
+          risksByPath={risksByPath}
         />
       ))}
     </div>

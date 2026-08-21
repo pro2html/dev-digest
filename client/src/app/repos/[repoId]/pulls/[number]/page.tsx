@@ -66,10 +66,28 @@ export default function PRDetailPage() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  /** Manual tab changes drop one-shot `finding` deep-links so Agent runs opens at top. */
+  /** Manual tab changes drop one-shot `finding` deep-links so Agent runs opens at top.
+   *  Leaving Files changed also drops `file`/`line` focus (same family). */
   const setTab = (t: string) => {
     const sp = new URLSearchParams(search.toString());
     sp.set("tab", t);
+    sp.delete("finding");
+    if (t !== "diff") {
+      sp.delete("file");
+      sp.delete("line");
+    }
+    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+  };
+  const focusFile = search.get("file");
+  const focusLineRaw = search.get("line");
+  const focusLine = focusLineRaw != null && /^\d+$/.test(focusLineRaw) ? Number(focusLineRaw) : null;
+  /** Overview Risk Areas citations → Files changed, focused on that path (optional line). */
+  const openFileFocus = (path: string, line?: number) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("tab", "diff");
+    sp.set("file", path);
+    if (line != null) sp.set("line", String(line));
+    else sp.delete("line");
     sp.delete("finding");
     router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
   };
@@ -164,6 +182,8 @@ export default function PRDetailPage() {
             prBody={pr.body}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            changedPaths={pr.files.map((f) => f.path)}
+            onFocusFile={openFileFocus}
           />
         )}
 
@@ -206,6 +226,8 @@ export default function PRDetailPage() {
             files={pr.files}
             canComment={pr.status === "open"}
             onOpenFinding={openFinding}
+            focusFile={focusFile}
+            focusLine={focusLine}
           />
         )}
       </div>

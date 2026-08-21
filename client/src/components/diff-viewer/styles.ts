@@ -87,6 +87,15 @@ export const s = {
     textDecoration: "underline",
     textUnderlineOffset: 2,
   } satisfies CSSProperties,
+  riskBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    flexShrink: 0,
+  } satisfies CSSProperties,
   /** Far-left severity rail (matches FindingCard stripe colors). */
   findingStripe: {
     width: 3,

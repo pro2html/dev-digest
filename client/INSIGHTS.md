@@ -184,3 +184,23 @@ entry short (what happened, what to do instead).
 
 **Action:** Always `initialize` in the render effect. Do not assume a previous diagram’s theme is still active — or that it isn’t.
 
+## 2026-08-14 — Recurring Error & Fix
+
+**Insight:** Deep-link scroll into Files changed (`?file=` / `?line=`) cannot live in `DiffTab` as a 50ms `setTimeout`. Smart Diff still shows a skeleton then; `[data-path][data-line]` does not exist yet, so AC-07 often misses the line.
+
+**Why it matters:** Risk Areas clicks looked like a no-op: the tab switched, the file might not even be expanded yet, and the cited line never entered the viewport.
+
+**Evidence:** `client/src/components/diff-viewer/FileCard/FileCard.tsx:99-105` — scroll after the card is open and the patch is parsed; Smart Diff only mounts `FileCard` after `useSmartDiff` resolves.
+
+**Action:** Scroll from `FileCard` (`forceOpen` + `focusLine`) once lines are on screen. Do not time a querySelector from the tab against Smart Diff load.
+
+## 2026-08-14 — Recurring Error & Fix
+
+**Insight:** Why+Risk Brief facts are diff **stats only** (no hunks), so `file_refs` are almost always a bare path (`src/auth.ts`), not `path:line`. Dropping refs without `lineStart` yields an empty overlay — Files changed looks unchanged.
+
+**Why it matters:** Risk Areas links still navigate, but no shield/link/zap ever appears on a diff line.
+
+**Evidence:** `server/test/brief.test.ts` fixtures use `file_refs: ['src/auth.ts']`; `client/.../IntentCard/helpers.ts` `buildRiskMarkersByPath` now keeps path-only markers (`line: 0`) and `overlayRisksOnLines` pins them to the first added line.
+
+**Action:** Never require `:line` on brief citations. Pin path-only (or out-of-hunk) markers to a visible changed line; `review_focus.line_start` is only a hint when present.
+

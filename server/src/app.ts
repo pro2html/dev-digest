@@ -156,8 +156,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       });
       return;
     }
-    app.log.error(err);
     const e = err as { statusCode?: number; message?: string };
+    if (e.statusCode === 429) {
+      reply.status(429).send({
+        error: { code: 'rate_limited', message: e.message ?? 'Too many requests' },
+      });
+      return;
+    }
+    app.log.error(err);
     reply.status(e.statusCode ?? 500).send({
       error: { code: 'internal_error', message: e.message ?? 'Internal error' },
     });

@@ -1,7 +1,7 @@
 /* FileCard — one collapsible file in the diff: header (path, +/- stat, comment
    count / findings badge) and, when open, its parsed lines plus any outdated
    comments. Review finding word-links deep-link to Agent runs; left stripes
-   mark every covered line. */
+   mark every covered line. Risk Areas icons sit on the cited line (right). */
 "use client";
 
 import React from "react";
@@ -19,9 +19,29 @@ import {
   type DiffCommentApi,
 } from "../comments";
 import { overlayFindingsOnLines, type DiffFindingMarker } from "../findings";
+import { overlayRisksOnLines, lineIsRiskFocus, type DiffRiskMarker } from "../risks";
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
+
+/** After Why+Risk / `?file=&line=` navigation, wait until this card's lines exist. */
+function scrollDiffFocus(root: HTMLElement, focusLine: number | null | undefined) {
+  if (focusLine != null) {
+    const nodes = root.querySelectorAll<HTMLElement>("[data-path][data-line]");
+    for (const el of nodes) {
+      if (el.dataset.line === String(focusLine)) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
+  }
+  const riskRow = root.querySelector<HTMLElement>("[data-risk='true']");
+  if (riskRow) {
+    riskRow.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  root.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -38,32 +58,56 @@ export function FileCard({
   file,
   commenting,
   findings,
+  risks,
   defaultOpen,
+  forceOpen,
   findingsBadgeLabel,
   onOpenFinding,
+  focusLine,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   /** Review finding markers (start/end + severity + optional id). */
   findings?: DiffFindingMarker[];
+  /** Risk Areas markers (same icons as Overview, on the cited line). */
+  risks?: DiffRiskMarker[];
   /** Override initial open state (Smart Diff roles / findings). */
   defaultOpen?: boolean;
+  /** Force the card open (Why+Risk / `?file=` focus). */
+  forceOpen?: boolean;
   /** i18n label for the findings badge, e.g. "3 findings". */
   findingsBadgeLabel?: string;
   /** Open Agent runs tab and scroll to this finding. */
   onOpenFinding?: (findingId: string) => void;
+  /** Line from `?line=` — highlight + scroll after the patch is on screen. */
+  focusLine?: number | null;
 }) {
   const t = useTranslations("shell");
   const autoExpand =
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES;
   const [open, setOpen] = React.useState(
-    defaultOpen !== undefined ? defaultOpen : autoExpand,
+    forceOpen ? true : defaultOpen !== undefined ? defaultOpen : autoExpand,
   );
+  React.useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
   const overlays = React.useMemo(
     () => overlayFindingsOnLines(lines, findings ?? []),
     [lines, findings],
   );
+  const riskOverlays = React.useMemo(
+    () => overlayRisksOnLines(lines, risks ?? []),
+    [lines, risks],
+  );
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!forceOpen || !open) return;
+    const root = cardRef.current;
+    if (!root) return;
+    const id = window.requestAnimationFrame(() => scrollDiffFocus(root, focusLine));
+    return () => window.cancelAnimationFrame(id);
+  }, [forceOpen, open, focusLine, lines.length]);
   const findingCount = findings?.length ?? 0;
   const hasBlocker = (findings ?? []).some((f) => f.severity === "CRITICAL");
 
@@ -118,7 +162,7 @@ export function FileCard({
   };
 
   return (
-    <div style={s.fileCard}>
+    <div ref={cardRef} style={s.fileCard} data-file-path={file.path}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
@@ -195,6 +239,8 @@ export function FileCard({
                   findingMarkers={overlay.links}
                   stripeSeverity={overlay.stripe}
                   onOpenFinding={onOpenFinding}
+                  riskMarkers={riskOverlays[i]}
+                  focused={focusLine != null && lineIsRiskFocus(ln, focusLine)}
                 />
               );
             })

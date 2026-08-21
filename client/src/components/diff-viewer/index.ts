@@ -5,6 +5,7 @@ export { FileCard } from "./FileCard";
 export { AUTO_EXPAND_MAX_LINES } from "./constants";
 export type { DiffCommentApi } from "./comments";
 export type { DiffFindingMarker, LineFindingOverlay } from "./findings";
+export type { DiffRiskMarker, DiffRiskSeverity } from "./risks";
 export {
   markersByLine,
   normalizeDiffPath,
@@ -14,3 +15,4 @@ export {
   lineIntersectsFinding,
   lineIsFindingStart,
 } from "./findings";
+export { riskVisual, overlayRisksOnLines, lineIsRiskFocus } from "./risks";

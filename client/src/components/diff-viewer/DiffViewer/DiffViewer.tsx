@@ -9,6 +9,7 @@ import type { FindingRecord } from "@devdigest/shared";
 import type { PrFile } from "@/lib/types";
 import { type DiffCommentApi } from "../comments";
 import { buildFindingMarkersByPath, normalizeDiffPath } from "../findings";
+import type { DiffRiskMarker } from "../risks";
 import { s } from "../styles";
 import { FileCard } from "../FileCard";
 
@@ -17,12 +18,20 @@ export function DiffViewer({
   commenting,
   findings,
   onOpenFinding,
+  focusFile,
+  focusLine,
+  risksByPath,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   /** Latest-review findings for inline word-links. */
   findings?: FindingRecord[];
   onOpenFinding?: (findingId: string) => void;
+  /** Expand and scroll to this changed-file path (`?file=`). */
+  focusFile?: string | null;
+  focusLine?: number | null;
+  /** Risk Areas icons keyed by normalized path. */
+  risksByPath?: Map<string, DiffRiskMarker[]>;
 }) {
   const t = useTranslations("shell");
   const findingMap = React.useMemo(
@@ -36,15 +45,21 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f, i) => {
-        const markers = findingMap.get(normalizeDiffPath(f.path)) ?? [];
+        const key = normalizeDiffPath(f.path);
+        const markers = findingMap.get(key) ?? [];
+        const risks = risksByPath?.get(key) ?? [];
+        const focused = focusFile != null && key === normalizeDiffPath(focusFile);
         return (
           <FileCard
             key={i}
             file={f}
             commenting={commenting}
             findings={markers}
-            defaultOpen={markers.length > 0 ? true : undefined}
+            risks={risks}
+            defaultOpen={markers.length > 0 || risks.length > 0 ? true : undefined}
+            forceOpen={focused}
             onOpenFinding={onOpenFinding}
+            focusLine={focused ? focusLine : null}
           />
         );
       })}

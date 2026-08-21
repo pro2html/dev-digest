@@ -1,7 +1,7 @@
 /* CodeLine — one rendered diff line: gutter number, +/- sign, text, plus the
    hover "+" affordance, any anchored comment threads, and an inline composer.
    Findings: left severity stripe + right word-links (suggestion|warning|blocker)
-   that deep-link to Agent runs. */
+   that deep-link to Agent runs. Risk Areas: same Overview glyphs on the right. */
 "use client";
 
 import React from "react";
@@ -13,6 +13,7 @@ import { s, lineRowFor, lineSignFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 import { findingLinkLabel, type DiffFindingMarker } from "../findings";
+import { riskVisual, type DiffRiskMarker } from "../risks";
 
 export function CodeLine({
   ln,
@@ -22,6 +23,8 @@ export function CodeLine({
   findingMarkers,
   stripeSeverity,
   onOpenFinding,
+  riskMarkers,
+  focused,
 }: {
   ln: Line;
   path: string;
@@ -33,6 +36,10 @@ export function CodeLine({
   stripeSeverity?: Severity | null;
   /** Navigate to Agent runs → this finding card. */
   onOpenFinding?: (findingId: string) => void;
+  /** Risk Areas icons (same glyphs as Overview). */
+  riskMarkers?: DiffRiskMarker[];
+  /** Line targeted by `?file=&line=` from a Risk Areas click. */
+  focused?: boolean;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -50,7 +57,11 @@ export function CodeLine({
   const showAdd = hover && !!target && !composing;
   const lineNo = ln.newNo ?? ln.oldNo;
   const markers = findingMarkers ?? [];
+  const risks = riskMarkers ?? [];
+  const riskLook = risks[0] ? riskVisual(risks[0].severity) : null;
   const stripe = stripeSeverity ? SEV[stripeSeverity] : null;
+  const railColor = stripe ? stripe.c : (riskLook?.color ?? "transparent");
+  const riskAccent = riskLook?.color ?? "var(--accent)";
 
   return (
     <div
@@ -61,13 +72,25 @@ export function CodeLine({
       data-line={lineNo ?? undefined}
       data-old-line={ln.oldNo ?? undefined}
       data-new-line={ln.newNo ?? undefined}
+      data-risk={risks.length > 0 ? "true" : undefined}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div
+        style={{
+          ...lineRowFor(ln.kind),
+          ...(focused
+            ? {
+                boxShadow: `inset 3px 0 0 ${riskAccent}`,
+                outline: `1px solid color-mix(in srgb, ${riskAccent} 45%, transparent)`,
+                outlineOffset: -1,
+              }
+            : {}),
+        }}
+      >
         <span
           aria-hidden
           style={{
             ...s.findingStripe,
-            background: stripe ? stripe.c : "transparent",
+            background: railColor,
           }}
         />
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
@@ -118,6 +141,24 @@ export function CodeLine({
                   <IconComp size={12} style={{ flexShrink: 0 }} />
                   {label}
                 </button>
+              );
+            })}
+          </span>
+        )}
+        {risks.length > 0 && (
+          <span style={s.findingLinks} data-testid="diff-risk-icons">
+            {risks.map((r, i) => {
+              const visual = riskVisual(r.severity);
+              const RiskIcon = Icon[visual.icon];
+              return (
+                <span
+                  key={`${r.line}-${r.title}-${i}`}
+                  title={r.title}
+                  aria-label={`Risk: ${r.title}`}
+                  style={{ ...s.riskBadge, color: visual.color, background: visual.bg }}
+                >
+                  <RiskIcon size={14} />
+                </span>
               );
             })}
           </span>
