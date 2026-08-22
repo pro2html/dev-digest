@@ -153,7 +153,12 @@ export default function SkillEditorPage() {
               </Badge>
               {!skill.enabled && <Badge color="var(--text-muted)">{t("editor.disabled")}</Badge>}
               <div style={{ marginLeft: "auto" }}>
-                <Button kind="secondary" size="sm" icon="FlaskConical" disabled title={t("editor.runOnEvalsTitle")}>
+                <Button
+                  kind="secondary"
+                  size="sm"
+                  icon="FlaskConical"
+                  onClick={() => setTab("evals")}
+                >
                   {t("editor.runOnEvals")}
                 </Button>
               </div>

@@ -224,4 +224,35 @@ entry short (what happened, what to do instead).
 
 **Action:** Keep the 429 → `rate_limited` branch in the global error handler, after `AppError` and before the `internal_error` fallback. Do not rely on Fastify's default error body.
 
+## 2026-08-22 — Context
+
+**Insight:** `server/src/vendor/shared/contracts/eval-ci.ts` and the client twin are already *not* byte-identical: the server copy has `AgentManifest` + extra `Provider`/`CiFailOn` imports. The 2026-07-31 “keep both copies identical” rule still applies to *new* schemas, but a whole-file `diff` will not be empty.
+
+**Why it matters:** A plan-verifier that requires the two `eval-ci.ts` files to be byte-identical will fail on pre-existing drift, not on the L06 additions.
+
+**Evidence:** Server file imports `Provider, CiFailOn` and defines `AgentManifest`; client file does neither. Additive L06 schemas (`EvalSetRun`, `EvalCaseListItem`, …) were appended to both.
+
+**Action:** When adding eval contracts, copy the new block into both files. Do not “sync” the pre-existing `AgentManifest` gap unless a plan explicitly owns that cleanup.
+
+## 2026-08-22 — Decision
+
+**Insight:** Existing `EvalDashboard.current` is a required object. AC-46 needs a nullable current, so the owner dashboard responds with `EvalOwnerDashboard` (`omit` + `extend`) rather than mutating `EvalDashboard`.
+
+**Why it matters:** Pointing Fastify `response` at `EvalDashboard` would force placeholder zeros (or strip a null) and make the empty-history state indistinguishable from a real 0/0 score.
+
+**Evidence:** `EvalDashboard` in both `eval-ci.ts` copies; `EvalOwnerDashboard` used by `GET /evals/owners/:ownerKind/:ownerId/dashboard`.
+
+**Action:** Keep `EvalDashboard` untouched. New nullable-current needs go on `EvalOwnerDashboard`.
+
+## 2026-08-22 — Recurring Error & Fix
+
+**Insight:** A Fastify + zod `body: Schema.default({})` does **not** accept a missing POST body. `app.inject()` (and `api.post(path)` with no payload) delivers `null`, and Zod `.default()` only substitutes `undefined` — validation returns 422 before the handler runs.
+
+**Why it matters:** One-click `POST /findings/:id/eval-case` (no overrides) 422s even for undecided findings, so tests never reach `finding_not_decided` / create. Adding an optional-overrides body schema silently broke the original empty POST.
+
+**Evidence:** `server/src/modules/evals/routes.ts:184` (`z.preprocess((v) => (v == null ? {} : v), EvalCaseFromFindingInput)`); `server/test/evals.it.test.ts` injects POST with no `payload`. Client `api.post` omits `content-type` when `body` is missing (`client/src/lib/api.ts:27-30`).
+
+**Action:** For optional JSON bodies, preprocess `null`/`undefined` to `{}` (or omit `schema.body` and `safeParse` in the handler). Do not rely on `.default({})` alone.
+
+
 

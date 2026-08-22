@@ -11,4 +11,9 @@ describe("activeKeyFor (AC-28)", () => {
     expect(activeKeyFor("/onboarding")).toBe("");
     expect(activeKeyFor("/onboarding/")).toBe("");
   });
+
+  it("maps /eval and /eval/:id to the eval nav key (AC-41)", () => {
+    expect(activeKeyFor("/eval")).toBe("eval");
+    expect(activeKeyFor("/eval/abc")).toBe("eval");
+  });
 });

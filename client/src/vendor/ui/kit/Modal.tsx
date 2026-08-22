@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { createPortal } from "react-dom";
 import { IconBtn } from "../primitives";
 
 export function Modal({
@@ -16,8 +19,13 @@ export function Modal({
   children?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", zIndex: 50, padding: 28 }}>
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const node = (
+    <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", zIndex: 80, padding: 28 }}>
       <div
         onClick={onClose}
         style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", animation: "ddfadein .15s ease" }}
@@ -66,4 +74,7 @@ export function Modal({
       </div>
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(node, document.body);
 }

@@ -204,3 +204,35 @@ entry short (what happened, what to do instead).
 
 **Action:** Never require `:line` on brief citations. Pin path-only (or out-of-hunk) markers to a visible changed line; `review_focus.line_start` is only a hint when present.
 
+## 2026-08-22 — Context
+
+**Insight:** `activeKeyFor("/eval")` already returned `"eval"` before the Eval Dashboard existed. The missing piece was the `NAV` / `SHORTCUTS` entry in vendored `nav.ts`, not the helper.
+
+**Why it matters:** Loosening `activeKeyFor` to a broader substring (or adding a second matcher) is unnecessary and risks colliding with future `/eval-*` routes.
+
+**Evidence:** `client/src/components/app-shell/helpers.ts` (`pathname.startsWith("/eval")`); helper test added for `/eval` and `/eval/:id`.
+
+**Action:** Add only the nav item + shortcut. Keep the existing `/eval*` match; assert it with a helper test rather than changing the matcher.
+
+## 2026-08-22 — Decision
+
+**Insight:** "Turn into eval case" opens the case editor via `GET /findings/:id/eval-case` (draft or existing). The row is created only on Save, through `POST /findings/:id/eval-case` with editor overrides. POSTing on the button click skips the mockup and cannot let the user edit expected output first.
+
+**Why it matters:** Reusing the original one-click POST as the button action looks simpler but never shows the two-column seeded modal (banner, Diff/Files/PR meta, Finding skeleton, Run case).
+
+**Evidence:** `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/FindingCard.tsx:67-71` (`useEvalCaseDraftFromFinding` then `setEditor`); `client/src/components/evals/CaseEditor.tsx:120-129` (POST with overrides only when `seed.source_finding_id` and no `savedId`). `stringifyExpected` unwraps a `must_find` envelope to a findings array (`client/src/components/evals/helpers.ts:39-40`) so the JSON pane matches the mockup; `parseExpectedOutput` already accepts a bare array.
+
+**Action:** Keep GET = preview, POST = create-from-editor. Do not POST from the finding action itself.
+
+## 2026-08-22 — Recurring Error & Fix
+
+**Insight:** Accepted/dismissed `FindingCard`s set `opacity: 0.6` on the card. That creates a stacking context: a nested `position: fixed` Modal inherits the 0.6 opacity and its `z-index` only competes inside the card, so the dialog looks transparent and slides under neighbouring findings.
+
+**Why it matters:** "Turn into eval case" is only enabled after accept/dismiss — exactly when the card is muted — so every seeded eval modal hit this unless it leaves the card's DOM.
+
+**Evidence:** `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:20` (`opacity: muted ? 0.6`); `client/src/vendor/ui/kit/Modal.tsx` portals to `document.body` after mount.
+
+**Action:** Overlay UI (`Modal`, `Drawer`) must `createPortal` to `document.body`. Do not render dialogs inside opacity/transform/overflow ancestors.
+
+
+
