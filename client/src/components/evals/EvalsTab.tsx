@@ -17,8 +17,9 @@ import {
   useStartEvalSetRun,
 } from "../../lib/hooks/evals";
 import { CaseEditor } from "./CaseEditor";
-import { CaseRow } from "./CaseRow";
+import { CaseRow, type CaseRowRunState } from "./CaseRow";
 import { EvalMetricCards } from "./EvalMetricCards";
+import { isEvalCaseBusy } from "./helpers";
 
 export function EvalsTab({ ownerKind, ownerId }: { ownerKind: EvalOwnerKind; ownerId: string }) {
   const t = useTranslations("eval");
@@ -36,6 +37,14 @@ export function EvalsTab({ ownerKind, ownerId }: { ownerKind: EvalOwnerKind; own
 
   const cases = casesQ.data ?? [];
   const inflight = historyQ.data?.find((r) => r.status === "queued" || r.status === "running");
+  const postedRunId = start.data?.id;
+  const awaitingHistory = Boolean(
+    start.isSuccess && postedRunId && !historyQ.data?.some((row) => row.id === postedRunId),
+  );
+  const setBusy = start.isPending || awaitingHistory || Boolean(inflight);
+  const runningCaseId = runOne.isPending && typeof runOne.variables === "string" ? runOne.variables : null;
+  const finishedCaseIds = inflight?.per_case.map((row) => row.case_id) ?? [];
+  const runLocked = Boolean(runningCaseId) || setBusy;
   const current = dashQ.data?.current;
   const na = dashQ.data?.current_not_applicable;
   const passing = cases.filter((c) => c.last_result === "passed").length;
@@ -62,6 +71,12 @@ export function EvalsTab({ ownerKind, ownerId }: { ownerKind: EvalOwnerKind; own
       }
       setStartError(err instanceof Error ? err.message : "Run failed");
     }
+  }
+
+  function runStateFor(caseId: string): CaseRowRunState {
+    if (isEvalCaseBusy({ caseId, runningCaseId, setRunActive: setBusy, finishedCaseIds })) return "running";
+    if (runLocked) return "blocked";
+    return "idle";
   }
 
   return (
@@ -119,7 +134,8 @@ export function EvalsTab({ ownerKind, ownerId }: { ownerKind: EvalOwnerKind; own
             <Button
               kind="secondary"
               icon="Play"
-              disabled={start.isPending || cases.length === 0}
+              disabled={cases.length === 0}
+              loading={start.isPending || awaitingHistory}
               onClick={() => void onRunAll()}
             >
               {t("run.all")}
@@ -136,7 +152,7 @@ export function EvalsTab({ ownerKind, ownerId }: { ownerKind: EvalOwnerKind; own
             <CaseRow
               key={c.id}
               item={c}
-              running={runOne.isPending}
+              runState={runStateFor(c.id)}
               onRun={() => runOne.mutate(c.id)}
               onEdit={() => setEditing(c)}
               onDelete={() => del.mutate(c.id)}

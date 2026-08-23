@@ -126,6 +126,10 @@ export class ReviewRepository {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
   }
 
+  clearFindingDecision(findingId: string): Promise<FindingRow | undefined> {
+    return reviewRepo.clearFindingDecision(this.db, findingId);
+  }
+
   // ---- observability: agent_runs + run_traces ----------------------------
 
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */

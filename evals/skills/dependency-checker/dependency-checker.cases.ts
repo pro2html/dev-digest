@@ -32,23 +32,23 @@ e2e/node_modules/playwright: 210M
 server/package.json also declares zod@3.23.8, client/package.json declares zod@3.22.4, reviewer-core/package.json declares zod@3.23.8 — three different resolved zod versions across packages.
 
 grep for imports crossing package boundaries:
-- server/src/routes/reviews.ts imports types from "@shared/review-types" (alias to server/src/vendor/shared)
-- server/src/services/review-service.ts imports "reviewer-core/src/pipeline.js" directly by relative path (not via the package's public entry point)
-- client/src/lib/api-types.ts imports "@shared/review-types" (same alias as server)
+- server/src/routes/reviews.ts imports types from "@devdigest/shared" (tsconfig path alias to server/src/vendor/shared — not an npm package)
+- server/src/services/review-service.ts imports "reviewer-core/src/pipeline.js" directly by relative path (not via the public entry alias @devdigest/reviewer-core)
+- client/src/lib/api-types.ts imports "@devdigest/shared" (client vendor copy of the same contract)
 - grep found no import of "moment" anywhere under server/src — only present in package.json`;
 
 export const cases: SkillCase[] = [
   {
-    name: "full report follows the required 5-section structure with a Mermaid graph",
+    name: "full report follows the required template with a Mermaid graph",
     kind: "quality",
     prompt: `Run a dependency check on this repo. I want the full report: graph, sizes, prioritized findings, recommendations.\n\n${REPO_DATA}`,
     grounding: ["```mermaid", "flowchart"],
     practices: [
-      "the report has a section named 'Scope' listing which packages (client, server, reviewer-core, e2e) were analyzed",
+      "the report's Snapshot section lists packages scanned as exactly server, client, reviewer-core, and e2e — the packages in the supplied data — and does not add mcp or evals",
       "the report includes a Mermaid diagram (a fenced ```mermaid code block using flowchart) showing dependency relationships between packages",
       "the report has a section with a size breakdown table showing dependencies and their installed size, not just a vague size statement",
-      "the report has a 'Findings & Priorities' section (or equivalently named) that groups findings under explicit severity tiers such as P0, P1, P2, or Info — not an unranked bullet list",
-      "the report ends with a Summary section giving 3-5 concrete, actionable takeaways ordered by priority",
+      "the report has a Findings and/or Priority backlog section that groups findings under explicit severity tiers such as P0, P1, P2, or Info — not an unranked bullet list",
+      "the report has an Advice (or equivalently named Summary) section giving 3-5 concrete, actionable takeaways ordered by priority",
       "every finding names a specific package, dependency, or file rather than giving generic advice like 'consider optimizing dependencies'",
     ],
     threshold: 0.7,
@@ -59,11 +59,11 @@ export const cases: SkillCase[] = [
     kind: "quality",
     prompt: `This repo isn't a monorepo — server, client, reviewer-core, and e2e share code via TypeScript path aliases, not workspace:* packages. Analyze our dependencies, including how these packages depend on each other internally.\n\n${REPO_DATA}`,
     practices: [
-      "the answer explicitly distinguishes internal cross-package dependencies (the @shared/review-types alias and the direct relative import into reviewer-core/src/pipeline.js) from external npm package dependencies, rather than treating them as the same kind of dependency",
+      "the answer labels @devdigest/shared as an internal path-alias or vendor dependency, not as an npm package like zod or fastify",
       "the answer flags server/src/services/review-service.ts importing reviewer-core/src/pipeline.js by relative path instead of through reviewer-core's public entry point as a P0-tier or otherwise explicitly called-out issue",
-      "the answer does not claim these packages are linked via workspace:* or pnpm workspaces, since the project explicitly is not a monorepo",
+      "the answer explicitly states that the packages are standalone / not a pnpm workspace / not linked via workspace:*",
     ],
-    threshold: 0.6,
+    threshold: 0.7,
     maxTurns: 10,
   },
   {

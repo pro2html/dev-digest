@@ -30,7 +30,8 @@ type RawFinding = {
 };
 
 /**
- * Parse the expected-output envelope. A bare array is treated as `must_find`.
+ * Parse the expected-output envelope.
+ * A non-empty bare array is `must_find`; `[]` is `must_not_flag` (dismissed case).
  * Unknown fields are ignored. `end_line` defaults to `start_line`.
  */
 export function parseExpectedOutput(raw: unknown): ParseExpectedResult {
@@ -56,7 +57,7 @@ export function parseExpectedOutput(raw: unknown): ParseExpectedResult {
 
   if (Array.isArray(raw)) {
     findings = raw;
-    expectation = 'must_find';
+    expectation = raw.length === 0 ? 'must_not_flag' : 'must_find';
   } else if (raw && typeof raw === 'object') {
     const obj = raw as { expectation?: unknown; findings?: unknown };
     if (obj.expectation === 'must_find' || obj.expectation === 'must_not_flag') {
@@ -100,6 +101,19 @@ export function parseExpectedOutput(raw: unknown): ParseExpectedResult {
   }
 
   return { ok: true, expectation, targets };
+}
+
+/** Persist as an envelope so a bare `[]` cannot be re-read as `must_find`. */
+export function asExpectedEnvelope(
+  raw: unknown,
+  expectation: EvalExpectation,
+): { expectation: EvalExpectation; findings: unknown[] } {
+  if (Array.isArray(raw)) return { expectation, findings: raw };
+  if (raw && typeof raw === 'object') {
+    const findings = (raw as { findings?: unknown }).findings;
+    return { expectation, findings: Array.isArray(findings) ? findings : [] };
+  }
+  return { expectation, findings: [] };
 }
 
 function fail(field: string, message: string): ParseExpectedErr {

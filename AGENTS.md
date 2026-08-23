@@ -35,6 +35,10 @@ host via `pnpm dev` inside each package.
 - Implementing the Conventions Extractor (repo → convention skills) →
  [`docs/specs/conventions-extractor.md`](docs/specs/conventions-extractor.md)
 - Local test setup across packages → [`TESTING.md`](TESTING.md)
+- Dependency audit / package weight / npm graph →
+  [`.claude/skills/dependency-checker/`](.claude/skills/dependency-checker/SKILL.md)
+- Repo-local regression guardrails (eval vs commit gate vs mutation) →
+  [`docs/guardrails.md`](docs/guardrails.md)
 
 ## Engineering insights
 

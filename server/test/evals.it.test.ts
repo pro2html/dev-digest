@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
@@ -9,6 +9,10 @@ import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockEmbedder, MockGitClient, MockLLMProvider } from '../src/adapters/mocks.js';
 import { SKILL_BASELINE } from '../src/modules/evals/constants.js';
+import {
+  COVERAGE_NUDGE_EVAL_CASES,
+  TEST_COVERAGE_NUDGE_SKILL,
+} from '../src/db/seed-eval-cases.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -186,6 +190,8 @@ d('evals routes (Testcontainers pg)', () => {
     accepted?: boolean;
     dismissed?: boolean;
     title?: string;
+    startLine?: number;
+    endLine?: number;
   }) {
     const name = `eval-repo-${repoSeq++}`;
     const [repo] = await pg.handle.db
@@ -235,8 +241,8 @@ d('evals routes (Testcontainers pg)', () => {
       .values({
         reviewId: review!.id,
         file: 'src/config.ts',
-        startLine: 11,
-        endLine: 11,
+        startLine: opts.startLine ?? 11,
+        endLine: opts.endLine ?? opts.startLine ?? 11,
         severity: 'CRITICAL',
         category: 'security',
         title: opts.title ?? 'Hardcoded Stripe secret key',
@@ -261,13 +267,21 @@ d('evals routes (Testcontainers pg)', () => {
     expect(body.owner_id).toBe(agent.id);
     expect(body.id).toBeTruthy();
     expect(body.input_diff).toContain('stripeKey');
+    const createdFinding = body.expected_output?.findings?.[0];
+    expect(createdFinding).toMatchObject({ file: 'src/config.ts', start_line: 11, end_line: 11 });
     await app.close();
   });
 
   it('previews a seeded case from a finding without inserting a row', async () => {
     const app = await appWith();
     const agent = await createAgent(app);
-    const finding = await insertFinding({ agentId: agent.id, accepted: true, title: 'Accepted leak' });
+    const finding = await insertFinding({
+      agentId: agent.id,
+      accepted: true,
+      title: 'Accepted leak',
+      startLine: 2,
+      endLine: 15,
+    });
     const res = await app.inject({ method: 'GET', url: `/findings/${finding.id}/eval-case` });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -275,6 +289,13 @@ d('evals routes (Testcontainers pg)', () => {
     expect(body.draft.name).toBe('must-find-accepted-leak');
     expect(body.draft.expectation).toBe('must_find');
     expect(body.draft.finding_title).toBe('Accepted leak');
+    expect(body.draft.start_line).toBe(2);
+    expect(body.draft.end_line).toBe(15);
+    expect(body.draft.expected_output.findings[0]).toMatchObject({
+      file: 'src/config.ts',
+      start_line: 2,
+      end_line: 15,
+    });
     const listed = await app.inject({ method: 'GET', url: `/evals/owners/agent/${agent.id}/cases` });
     expect(listed.json()).toHaveLength(0);
     await app.close();
@@ -312,6 +333,37 @@ d('evals routes (Testcontainers pg)', () => {
     expect(second.statusCode).toBe(409);
     expect(second.json().error.code).toBe('eval_case_exists');
     expect(second.json().error.details.case_id).toBe(first.json().id);
+    await app.close();
+  });
+
+  it('rewrites the stored case to must_not_flag when a dismissed finding posts empty expected output', async () => {
+    const app = await appWith();
+    const agent = await createAgent(app);
+    const finding = await insertFinding({ agentId: agent.id, accepted: true });
+    const first = await app.inject({ method: 'POST', url: `/findings/${finding.id}/eval-case` });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().expectation).toBe('must_find');
+
+    await pg.handle.db
+      .update(t.findings)
+      .set({ acceptedAt: null, dismissedAt: new Date() })
+      .where(eq(t.findings.id, finding.id));
+
+    const preview = await app.inject({ method: 'GET', url: `/findings/${finding.id}/eval-case` });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json().existing.id).toBe(first.json().id);
+    expect(preview.json().draft.expectation).toBe('must_not_flag');
+    expect(preview.json().draft.expected_output.findings).toEqual([]);
+
+    const second = await app.inject({
+      method: 'POST',
+      url: `/findings/${finding.id}/eval-case`,
+      payload: { expected_output: [] },
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json().id).toBe(first.json().id);
+    expect(second.json().expectation).toBe('must_not_flag');
+    expect(second.json().expected_count).toBe(0);
     await app.close();
   });
 
@@ -561,6 +613,23 @@ d('evals routes (Testcontainers pg)', () => {
     expect(dash.current).toBeNull();
     expect(dash.delta).toBeNull();
     expect(dash.alert).toBeNull();
+    await app.close();
+  });
+
+  it('lists the five seeded eval cases on test-coverage-nudge', async () => {
+    const app = await appWith();
+    const [skill] = await pg.handle.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, TEST_COVERAGE_NUDGE_SKILL)));
+    expect(skill).toBeTruthy();
+    const res = await app.inject({ method: 'GET', url: `/evals/owners/skill/${skill!.id}/cases` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { name: string; owner_kind: string }[];
+    expect(body.map((c) => c.name).sort()).toEqual(
+      COVERAGE_NUDGE_EVAL_CASES.map((c) => c.name).sort(),
+    );
+    expect(body.every((c) => c.owner_kind === 'skill')).toBe(true);
     await app.close();
   });
 

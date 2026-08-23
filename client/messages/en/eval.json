@@ -74,6 +74,8 @@
     "bodyPlaceholder": "Wire up payments via Stripe SDK.",
     "preview": "Preview",
     "expectedOutput": "Expected output",
+    "actualOutput": "Actual output",
+    "actualEmpty": "Run the case to see what the reviewer returned — pass or fail.",
     "findingSkeleton": "+ Finding skeleton",
     "validJson": "valid JSON",
     "invalidJson": "invalid JSON",

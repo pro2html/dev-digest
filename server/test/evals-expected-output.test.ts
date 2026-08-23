@@ -10,12 +10,18 @@ describe('parseExpectedOutput', () => {
     expect(result.field).toBe('expected_output');
   });
 
-  it('names the missing field on an empty must_find envelope (AC-08)', () => {
+  it('treats [] as must_not_flag and names the missing field on an empty must_find envelope (AC-08)', () => {
     const emptyArray = parseExpectedOutput([]);
-    expect(emptyArray.ok).toBe(false);
-    if (emptyArray.ok) return;
-    expect(emptyArray.code).toBe('invalid_expected_output');
-    expect(emptyArray.field).toBe('file');
+    expect(emptyArray.ok).toBe(true);
+    if (!emptyArray.ok) return;
+    expect(emptyArray.expectation).toBe('must_not_flag');
+    expect(emptyArray.targets).toEqual([]);
+
+    const emptyMustFind = parseExpectedOutput({ expectation: 'must_find', findings: [] });
+    expect(emptyMustFind.ok).toBe(false);
+    if (emptyMustFind.ok) return;
+    expect(emptyMustFind.code).toBe('invalid_expected_output');
+    expect(emptyMustFind.field).toBe('file');
 
     const missingLine = parseExpectedOutput({
       expectation: 'must_find',

@@ -155,6 +155,7 @@ export const EvalCaseDraft = z.object({
   finding_title: z.string(),
   finding_file: z.string(),
   start_line: z.number().int(),
+  end_line: z.number().int().optional(),
   source: z.enum(['accepted', 'dismissed']),
   source_finding_id: z.string().uuid(),
 });

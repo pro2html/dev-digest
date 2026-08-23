@@ -12,6 +12,11 @@ const delMutate = vi.fn();
 let casesData: EvalCaseListItem[] = [];
 let dashData: EvalOwnerDashboard | undefined;
 let historyData: EvalSetRun[] = [];
+let startPending = false;
+let startSuccess = false;
+let startData: { id: string } | undefined;
+let runPending = false;
+let runVariables: string | undefined;
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -27,9 +32,19 @@ vi.mock("../../lib/hooks/evals", () => ({
   useEvalCases: () => ({ data: casesData, isLoading: false }),
   useEvalOwnerDashboard: () => ({ data: dashData }),
   useEvalHistory: () => ({ data: historyData }),
-  useStartEvalSetRun: () => ({ mutateAsync: startMutate, isPending: false }),
+  useStartEvalSetRun: () => ({
+    mutateAsync: startMutate,
+    isPending: startPending,
+    isSuccess: startSuccess,
+    data: startData,
+  }),
   useCancelEvalSetRun: () => ({ mutate: cancelMutate, isPending: false }),
-  useRunEvalCase: () => ({ mutate: runMutate, mutateAsync: runMutate, isPending: false }),
+  useRunEvalCase: () => ({
+    mutate: runMutate,
+    mutateAsync: runMutate,
+    isPending: runPending,
+    variables: runVariables,
+  }),
   useDeleteEvalCase: () => ({ mutate: delMutate, isPending: false }),
   useCreateEvalCase: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateEvalCaseFromFinding: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -47,6 +62,11 @@ afterEach(() => {
   casesData = [];
   dashData = undefined;
   historyData = [];
+  startPending = false;
+  startSuccess = false;
+  startData = undefined;
+  runPending = false;
+  runVariables = undefined;
 });
 
 function listItem(over: Partial<EvalCaseListItem> & Pick<EvalCaseListItem, "id" | "name">): EvalCaseListItem {
@@ -118,6 +138,27 @@ describe("EvalsTab", () => {
     expect(screen.getByText(/View full dashboard/i)).toBeInTheDocument();
   });
 
+  it("shows expected 0 for a passing must_not_flag case even if a forbidden target is stored", () => {
+    casesData = [
+      listItem({
+        id: "neg",
+        name: "must-not-flag-parsepagelimit-test-only-covers-the-happy-path-f",
+        expectation: "must_not_flag",
+        expected_count: 1,
+        expected_output: {
+          expectation: "must_not_flag",
+          findings: [{ file: "src/parse.ts", start_line: 4 }],
+        },
+        last_result: "passed",
+        last_actual_count: 0,
+      }),
+    ];
+    renderTab("agent");
+    expect(screen.getByText("MUST NOT FLAG")).toBeInTheDocument();
+    expect(screen.getByText(/expected 0 findings, got 0/i)).toBeInTheDocument();
+    expect(screen.queryByText(/expected 1 finding, got 0/i)).not.toBeInTheDocument();
+  });
+
   it("shows the empty-set state and disables Run all evals (AC-21)", () => {
     renderTab();
     expect(screen.getByText(/No eval cases yet/i)).toBeInTheDocument();
@@ -157,6 +198,78 @@ describe("EvalsTab", () => {
     expect(progress).toHaveTextContent(/Cancel/i);
     fireEvent.click(progress);
     expect(cancelMutate).toHaveBeenCalledWith("run-1");
+    expect(screen.getByRole("status", { name: /^Running…$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Running…$/ })).toBeDisabled();
+  });
+
+  it("shows a loader on the clicked case while a single run is in flight", () => {
+    casesData = [listItem({ id: "c1", name: "one" }), listItem({ id: "c2", name: "two" })];
+    runPending = true;
+    runVariables = "c1";
+    renderTab();
+    const status = screen.getByRole("status", { name: /^Running…$/ });
+    expect(status.closest("[aria-busy='true']")).toHaveTextContent("one");
+    expect(screen.getByRole("button", { name: /^Running…$/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Run$/ })).toBeDisabled();
+  });
+
+  it("shows a loader on every case while Run all evals is starting", () => {
+    casesData = [listItem({ id: "c1", name: "one" }), listItem({ id: "c2", name: "two" })];
+    startPending = true;
+    renderTab();
+    expect(screen.getAllByRole("status", { name: /^Running…$/ })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Run all evals/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Run$/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps loaders on unfinished cases once the set run is in progress", () => {
+    casesData = [listItem({ id: "c1", name: "one" }), listItem({ id: "c2", name: "two" })];
+    historyData = [
+      {
+        id: "run-1",
+        owner_kind: "agent",
+        owner_id: "ag1",
+        owner_version: 1,
+        system_prompt: "p",
+        baseline_label: null,
+        status: "running",
+        started_at: new Date().toISOString(),
+        finished_at: null,
+        cases_total: 2,
+        cases_finished: 1,
+        passed: null,
+        recall: null,
+        precision: null,
+        citation_accuracy: null,
+        recall_not_applicable: null,
+        precision_not_applicable: null,
+        citation_accuracy_not_applicable: null,
+        cost_usd: null,
+        duration_ms: null,
+        per_case: [
+          {
+            id: "cr1",
+            case_id: "c1",
+            case_name: "one",
+            ran_at: new Date().toISOString(),
+            actual_output: {},
+            pass: true,
+            recall: 1,
+            precision: 1,
+            citation_accuracy: 1,
+            duration_ms: 10,
+            cost_usd: null,
+            case_input_revision: 1,
+            result: "passed",
+            error: null,
+          },
+        ],
+      },
+    ];
+    renderTab();
+    expect(screen.getByRole("status", { name: /^Running…$/ })).toBeInTheDocument();
+    expect(screen.getByText("two").closest("[aria-busy='true']")).toBeTruthy();
+    expect(screen.getByText("one").closest("[aria-busy='true']")).toBeNull();
   });
 
   it("does not render an agent selector for a skill-owned tab (AC-53)", () => {

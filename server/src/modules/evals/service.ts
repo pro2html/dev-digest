@@ -14,7 +14,7 @@ import type {
 import type { Container } from '../../platform/container.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { executeFrozenCase } from './case-executor.js';
-import { parseExpectedOutput } from './expected-output.js';
+import { asExpectedEnvelope, parseExpectedOutput } from './expected-output.js';
 import {
   caseToListItem,
   currentNotApplicableOf,
@@ -34,6 +34,23 @@ import type { EvalSetRunRow } from './types.js';
 
 const cancelled = new Set<string>();
 const executing = new Set<string>();
+
+function hasFindingCaseOverride(overrides?: {
+  name?: string;
+  input_diff?: string;
+  input_files?: unknown;
+  input_meta?: unknown;
+  expected_output?: unknown;
+}): boolean {
+  if (!overrides) return false;
+  return (
+    overrides.name !== undefined ||
+    overrides.input_diff !== undefined ||
+    overrides.input_files !== undefined ||
+    overrides.input_meta !== undefined ||
+    overrides.expected_output !== undefined
+  );
+}
 
 export class EvalsService {
   private repo: EvalsRepository;
@@ -81,6 +98,7 @@ export class EvalsService {
     if (!parsed.ok) {
       throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
     }
+    const expectedOutput = asExpectedEnvelope(input.expected_output, parsed.expectation);
     const row = await this.repo.insertCase({
       workspaceId,
       ownerKind,
@@ -89,7 +107,7 @@ export class EvalsService {
       inputDiff: input.input_diff,
       inputFiles: input.input_files ?? null,
       inputMeta: input.input_meta ?? null,
-      expectedOutput: input.expected_output,
+      expectedOutput,
       notes: input.notes ?? null,
     });
     return caseToListItem(row, undefined);
@@ -108,19 +126,20 @@ export class EvalsService {
     if (!parsed.ok) {
       throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
     }
+    const expectedOutput = asExpectedEnvelope(input.expected_output, parsed.expectation);
 
     const bump =
       !inputsEqual(existing.inputDiff ?? '', input.input_diff) ||
       !inputsEqual(existing.inputFiles ?? null, input.input_files ?? null) ||
       !inputsEqual(existing.inputMeta ?? null, input.input_meta ?? null) ||
-      !inputsEqual(existing.expectedOutput ?? null, input.expected_output);
+      !inputsEqual(existing.expectedOutput ?? null, expectedOutput);
 
     const row = await this.repo.updateCase(workspaceId, caseId, {
       name: input.name,
       inputDiff: input.input_diff,
       inputFiles: input.input_files ?? null,
       inputMeta: input.input_meta ?? null,
-      expectedOutput: input.expected_output,
+      expectedOutput,
       notes: input.notes ?? null,
       bumpRevision: bump,
     });
@@ -160,21 +179,34 @@ export class EvalsService {
       expected_output?: unknown;
     },
   ): Promise<EvalCaseListItem> {
+    const finding = await this.requireFindingForEval(workspaceId, findingId);
+    const draft = draftFromFinding(finding);
+    const expectedRaw = overrides?.expected_output ?? draft.expected_output;
+    const parsed = parseExpectedOutput(expectedRaw);
+    if (!parsed.ok) {
+      throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
+    }
+    const expectedOutput = asExpectedEnvelope(expectedRaw, parsed.expectation);
+
     const existing = await this.repo.getCaseBySourceFinding(workspaceId, findingId);
     if (existing) {
+      if (hasFindingCaseOverride(overrides)) {
+        return this.updateCase(workspaceId, existing.id, {
+          owner_kind: existing.ownerKind,
+          owner_id: existing.ownerId,
+          name: overrides?.name ?? existing.name,
+          input_diff: overrides?.input_diff ?? existing.inputDiff ?? '',
+          input_files: overrides?.input_files !== undefined ? overrides.input_files : existing.inputFiles,
+          input_meta: overrides?.input_meta !== undefined ? overrides.input_meta : existing.inputMeta,
+          expected_output: expectedOutput,
+          notes: existing.notes,
+        });
+      }
       throw new AppError('eval_case_exists', 'An eval case already exists for this finding', 409, {
         case_id: existing.id,
         owner_id: existing.ownerId,
         owner_kind: existing.ownerKind,
       });
-    }
-
-    const finding = await this.requireFindingForEval(workspaceId, findingId);
-    const draft = draftFromFinding(finding);
-    const expectedOutput = overrides?.expected_output ?? draft.expected_output;
-    const parsed = parseExpectedOutput(expectedOutput);
-    if (!parsed.ok) {
-      throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
     }
 
     try {
@@ -194,6 +226,18 @@ export class EvalsService {
       if (isUniqueViolation(err)) {
         const again = await this.repo.getCaseBySourceFinding(workspaceId, findingId);
         if (again) {
+          if (hasFindingCaseOverride(overrides)) {
+            return this.updateCase(workspaceId, again.id, {
+              owner_kind: again.ownerKind,
+              owner_id: again.ownerId,
+              name: overrides?.name ?? again.name,
+              input_diff: overrides?.input_diff ?? again.inputDiff ?? '',
+              input_files: overrides?.input_files !== undefined ? overrides.input_files : again.inputFiles,
+              input_meta: overrides?.input_meta !== undefined ? overrides.input_meta : again.inputMeta,
+              expected_output: expectedOutput,
+              notes: again.notes,
+            });
+          }
           throw new AppError('eval_case_exists', 'An eval case already exists for this finding', 409, {
             case_id: again.id,
             owner_id: again.ownerId,

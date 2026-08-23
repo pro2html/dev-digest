@@ -173,15 +173,18 @@ export function draftFromFinding(finding: FindingForEval): EvalCaseDraft {
   const expectation = finding.acceptedAt ? 'must_find' : 'must_not_flag';
   const expectedOutput = {
     expectation,
-    findings: [
-      {
-        severity: finding.severity,
-        category: finding.category,
-        title: finding.title,
-        file: finding.file,
-        start_line: finding.startLine,
-      },
-    ],
+    findings: finding.acceptedAt
+      ? [
+          {
+            severity: finding.severity,
+            category: finding.category,
+            title: finding.title,
+            file: finding.file,
+            start_line: finding.startLine,
+            end_line: finding.endLine,
+          },
+        ]
+      : [],
   };
   return {
     owner_kind: 'agent',
@@ -195,6 +198,7 @@ export function draftFromFinding(finding: FindingForEval): EvalCaseDraft {
     finding_title: finding.title,
     finding_file: finding.file,
     start_line: finding.startLine,
+    end_line: finding.endLine,
     source: finding.acceptedAt ? 'accepted' : 'dismissed',
     source_finding_id: finding.id,
   };

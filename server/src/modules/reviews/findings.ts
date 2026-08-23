@@ -4,9 +4,9 @@ import type { ReviewRepository } from './repository.js';
 import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
 
 /**
- * Finding actions available in the starter: accept / dismiss. These decisions
- * are the dataset later lessons build on (eval cases from accept/dismiss, the
- * `learn → memory` action, etc.).
+ * Finding actions available in the starter: accept / dismiss / undecide. These
+ * decisions are the dataset later lessons build on (eval cases from
+ * accept/dismiss, the `learn → memory` action, etc.).
  */
 export async function actOnFinding(
   repo: ReviewRepository,
@@ -26,6 +26,10 @@ export async function actOnFinding(
     }
     case 'dismiss': {
       const row = await repo.setFindingDismissed(findingId, new Date());
+      return { finding: findingRowToDto(row!) };
+    }
+    case 'undecide': {
+      const row = await repo.clearFindingDecision(findingId);
       return { finding: findingRowToDto(row!) };
     }
     default:

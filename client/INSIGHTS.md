@@ -234,5 +234,36 @@ entry short (what happened, what to do instead).
 
 **Action:** Overlay UI (`Modal`, `Drawer`) must `createPortal` to `document.body`. Do not render dialogs inside opacity/transform/overflow ancestors.
 
+## 2026-08-23 — Mistake
+
+**Insight:** React does not leak the eval modal. `Run case` calls `persist()` before scoring, so Cancel after a run still leaves a `must_find` row. The next GET returns that existing case plus a fresh dismissed `seed`. Initializing expected JSON from `existing` made the banner stay POSITIVE after Accept → Run → Cancel → Dismiss.
+
+**Why it matters:** Refines the 2026-08-22 Decision above: the row is created on Save *or* Run, not Save only. Flipping the finding's decision does not rewrite the stored case.
+
+**Evidence:** `client/src/components/evals/CaseEditor.tsx` (`runCase` → `persist`); `seedOverridesExisting` in `client/src/components/evals/helpers.ts`; GET `previewCaseFromFinding` returns `{ existing, draft }`.
+
+**Action:** When `seed.expectation !== existing.expectation`, initialize name + expected output from the seed and keep `existing.id` so Save PATCHes the same row. Remount the editor with a key that includes expectation.
+
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** Re-seeding the dismiss modal to `[]` is not enough. Persist used to send a bare array, which the API treated as `must_find` (and `eval_case_exists` then ran the old 1-target row). `[]` must be wrapped as `{ expectation: "must_not_flag", findings: [] }` before save; a 409 must PATCH that envelope, then Run.
+
+**Why it matters:** Accept → Run → Dismiss → Run still showed "expected 1 finding, got 0" even when the textarea was empty, because scoring read the stored `must_find` case.
+
+**Evidence:** `client/src/components/evals/helpers.ts:116` (`wrapExpectedOutput`); `client/src/components/evals/CaseEditor.tsx:131` (persist wraps arrays); `CaseEditor.tsx:154` (409 → PATCH); `CaseEditor.tsx:213` (hide stale last-run bar when the seed flipped).
+
+**Action:** Never persist a bare `[]` as expected output. On `eval_case_exists`, PATCH then run — do not score the leftover `must_find` row. Hide `existing.last_result` until the flipped case has been run.
+
+## 2026-08-23 — Mistake
+
+**Insight:** `expected_count` on an eval case row is `targets.length`, not "how many findings the agent should produce". A `must_not_flag` case can still store a forbidden finding (AC-02), so the API reports `expected_count: 1` while scoring treats the case as assert-empty (`targetCount: 0`). The agent Evals list used the raw count and showed "expected 1 finding, got 0" on a passing negative case.
+
+**Why it matters:** Refines the persist/`[]` entry above: emptying expected JSON (or wrapping `must_not_flag`) is not enough if the list still prints `expected_count`. The editor bar already forced 0; the row did not. Fail text for MUST NOT FLAG is "expected 0, got N", never "expected 1, got 0".
+
+**Evidence:** `client/src/components/evals/helpers.ts:42` (`displayExpectedCount`); `client/src/components/evals/CaseRow.tsx:75`; scorer hardcodes `targetCount: 0` for `must_not_flag` in `server/src/modules/evals/scorer.ts`.
+
+**Action:** Always pass list/editor "expected N" through `displayExpectedCount`. Keep API `expected_count` as target length so `seedOverridesExisting` can still detect leftover targets (`expected_count > 0`).
+
+
 
 

@@ -254,5 +254,26 @@ entry short (what happened, what to do instead).
 
 **Action:** For optional JSON bodies, preprocess `null`/`undefined` to `{}` (or omit `schema.body` and `safeParse` in the handler). Do not rely on `.default({})` alone.
 
+## 2026-08-23 — Context
+
+**Insight:** Skill Evals in the product are Postgres `eval_cases` rows keyed by `owner_kind='skill'` + `skills.id`. The repo-local `evals/skills/<name>/` harness never appears in that tab, and "Turn into eval case" always owns the **agent** that produced the finding.
+
+**Why it matters:** Adding judged cases under `evals/skills/` (or accepting findings on a PR) leaves every skill's Evals tab empty. Demo/lab cases have to be inserted into `eval_cases` during seed, looked up by skill name.
+
+**Evidence:** `server/src/db/seed-eval-cases.ts:251` (`seedCoverageNudgeEvalCases` upserts by skill name + case name); `server/src/db/seed.ts:340` (called after seed skills); `server/src/modules/evals/helpers.ts:190` (`draftFromFinding` hard-codes `owner_kind: 'agent'`).
+
+**Action:** To show cases on a skill in Skills Lab, write `eval_cases` with that skill's UUID. Keep `evals/` filesystem cases for the Claude harness only.
+
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** A bare `[]` in `expected_output` is not an invalid `must_find`. It is `must_not_flag` (0 targets). Writes must store the envelope `{ expectation, findings }` so a later GET cannot re-parse `[]` as `must_find`. `POST /findings/:id/eval-case` with overrides updates the existing row; an empty duplicate POST still returns `eval_case_exists`.
+
+**Why it matters:** After Accept creates a 1-target case, Dismiss + Run with empty expected still scored `must_find` / expected 1 until the parser and upsert changed.
+
+**Evidence:** `server/src/modules/evals/expected-output.ts:60` (`[]` → `must_not_flag`); `expected-output.ts:107` (`asExpectedEnvelope`); `server/src/modules/evals/service.ts:193` (`hasFindingCaseOverride` → `updateCase`). Empty POST still 409s (`server/test/evals.it.test.ts` AC-05).
+
+**Action:** Treat `[]` as a negative case. Persist envelopes, not bare arrays. Upsert from-finding when the editor sends `expected_output`; keep 409 for a body-less duplicate click.
+
+
 
 

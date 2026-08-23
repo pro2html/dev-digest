@@ -8,6 +8,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import {
   Icon,
+  IconBtn,
   SeverityBadge,
   CategoryTag,
   MonoLink,
@@ -66,6 +67,7 @@ export function FindingCard({
 
   async function onTurnIntoEval(e: React.MouseEvent) {
     e.stopPropagation();
+    if (!muted) return;
     try {
       const data = await preview.mutateAsync(f.id);
       setEditor(data);
@@ -117,8 +119,9 @@ export function FindingCard({
               kind="secondary"
               size="sm"
               icon="Check"
-              disabled={pending}
+              disabled={pending || dismissed}
               active={accepted}
+              style={accepted ? s.acceptActive : undefined}
               onClick={() => onAction?.("accept")}
             >
               {t("finding.accept")}
@@ -127,17 +130,30 @@ export function FindingCard({
               kind="ghost"
               size="sm"
               icon="X"
-              disabled={pending}
+              disabled={pending || accepted}
               active={dismissed}
+              style={dismissed ? s.dismissActive : undefined}
               onClick={() => onAction?.("dismiss")}
             >
               {t("finding.dismiss")}
             </Button>
+            <IconBtn
+              icon="Undo2"
+              label={t("finding.undo")}
+              size={30}
+              disabled={!muted || pending}
+              onClick={() => {
+                if (!muted) return;
+                onAction?.("undecide");
+                setEditor(null);
+              }}
+            />
             <Button
               kind="ghost"
               size="sm"
               icon="FlaskConical"
-              disabled={preview.isPending}
+              disabled={!muted || preview.isPending}
+              title={!muted ? te("undecided") : undefined}
               onClick={(e) => void onTurnIntoEval(e)}
             >
               {te("turnInto")}
@@ -152,6 +168,7 @@ export function FindingCard({
     </div>
     {editor && (
       <CaseEditor
+        key={`${editor.draft.source_finding_id}:${editor.draft.expectation}:${editor.existing?.id ?? "new"}`}
         ownerKind={editor.existing?.owner_kind ?? editor.draft.owner_kind}
         ownerId={editor.existing?.owner_id ?? editor.draft.owner_id}
         existing={editor.existing}

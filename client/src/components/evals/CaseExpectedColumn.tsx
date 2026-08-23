@@ -19,12 +19,14 @@ export function CaseExpectedColumn({
   jsonOk,
   onSkeleton,
   lastSummary,
+  actual,
 }: {
   expected: string;
   onExpected: (v: string) => void;
   jsonOk: boolean;
   onSkeleton: () => void;
   lastSummary: LastRunSummary | null;
+  actual: string;
 }) {
   const t = useTranslations("eval.caseEditor");
   return (
@@ -48,25 +50,44 @@ export function CaseExpectedColumn({
         onChange={(e) => onExpected(e.target.value)}
         spellCheck={false}
         className="mono"
+        aria-label={t("expectedOutput")}
+        style={paneStyle(jsonOk ? "var(--border-strong)" : "var(--danger)")}
+      />
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{t("actualOutput")}</div>
+      <textarea
+        value={actual}
+        readOnly
+        spellCheck={false}
+        className="mono"
+        aria-label={t("actualOutput")}
+        placeholder={t("actualEmpty")}
         style={{
-          flex: 1,
-          minHeight: 280,
-          width: "100%",
-          fontSize: 12,
-          lineHeight: 1.5,
-          padding: 12,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderStyle: "solid",
-          borderColor: jsonOk ? "var(--border-strong)" : "var(--danger)",
-          background: "var(--bg-surface)",
-          color: "var(--text-primary)",
-          resize: "vertical",
+          ...paneStyle("var(--border)"),
+          minHeight: 160,
+          color: actual ? "var(--text-primary)" : "var(--text-muted, var(--text-secondary))",
         }}
       />
       {lastSummary && <LastRunBar summary={lastSummary} />}
     </div>
   );
+}
+
+function paneStyle(borderColor: string): React.CSSProperties {
+  return {
+    flex: 1,
+    minHeight: 160,
+    width: "100%",
+    fontSize: 12,
+    lineHeight: 1.5,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor,
+    background: "var(--bg-surface)",
+    color: "var(--text-primary)",
+    resize: "vertical",
+  };
 }
 
 function LastRunBar({ summary }: { summary: LastRunSummary }) {

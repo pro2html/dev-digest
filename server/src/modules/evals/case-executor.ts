@@ -50,7 +50,7 @@ export async function executeFrozenCase(input: {
       kept: [],
       durationMs: Date.now() - started,
       costUsd: null,
-      actualOutput: null,
+      actualOutput: { error: parsed.message },
       error: parsed.message,
     };
   }
@@ -102,7 +102,7 @@ export async function executeFrozenCase(input: {
       kept: [],
       durationMs: Date.now() - started,
       costUsd: null,
-      actualOutput: null,
+      actualOutput: { error: message },
       error: message,
     };
   }

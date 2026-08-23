@@ -14,7 +14,7 @@ export function CaseBanner({
   expectation: EvalExpectation;
   title?: string;
   file?: string;
-  line?: number;
+  line?: number | string;
 }) {
   const t = useTranslations("eval.caseEditor");
   const positive = expectation === "must_find";

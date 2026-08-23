@@ -29,6 +29,30 @@ export function filesPayload(paths: string[]): { path: string }[] | null {
   return cleaned.length ? cleaned.map((path) => ({ path })) : null;
 }
 
+export function stringifyActual(raw: unknown): string {
+  if (raw == null) return "";
+  try {
+    return JSON.stringify(raw, null, 2);
+  } catch {
+    return String(raw);
+  }
+}
+
+/** MUST NOT FLAG is "assert empty": display 0 even if forbidden targets are stored. */
+export function displayExpectedCount(expectation: string | undefined, storedCount: number): number {
+  return expectation === "must_not_flag" ? 0 : storedCount;
+}
+
+/** Re-seed when the finding's decision no longer matches the stored case. */
+export function seedOverridesExisting(
+  existing: { expectation?: string; expected_count?: number } | null | undefined,
+  seed: { expectation?: string } | null | undefined,
+): boolean {
+  if (!existing || !seed) return false;
+  if (existing.expectation !== seed.expectation) return true;
+  return seed.expectation === "must_not_flag" && (existing.expected_count ?? 0) > 0;
+}
+
 export function stringifyExpected(raw: unknown): string {
   if (raw == null) {
     return JSON.stringify([SKELETON], null, 2);
@@ -38,6 +62,9 @@ export function stringifyExpected(raw: unknown): string {
       const obj = raw as { expectation?: unknown; findings?: unknown };
       if (obj.expectation === "must_find" && Array.isArray(obj.findings)) {
         return JSON.stringify(obj.findings, null, 2);
+      }
+      if (obj.expectation === "must_not_flag" && Array.isArray(obj.findings) && obj.findings.length === 0) {
+        return JSON.stringify([], null, 2);
       }
     }
     return JSON.stringify(raw, null, 2);
@@ -60,6 +87,7 @@ export const FINDING_SKELETON = {
   title: "",
   file: "",
   start_line: 1,
+  end_line: 1,
 };
 
 const SKELETON = FINDING_SKELETON;
@@ -81,7 +109,7 @@ export function insertFindingSkeleton(text: string): string {
 export function expectationFromJson(text: string, fallback: EvalExpectation): EvalExpectation {
   const parsed = parseJson(text);
   if (!parsed.ok) return fallback;
-  if (Array.isArray(parsed.value)) return "must_find";
+  if (Array.isArray(parsed.value)) return parsed.value.length === 0 ? "must_not_flag" : "must_find";
   if (parsed.value && typeof parsed.value === "object") {
     const exp = (parsed.value as { expectation?: unknown }).expectation;
     if (exp === "must_find" || exp === "must_not_flag") return exp;
@@ -89,16 +117,36 @@ export function expectationFromJson(text: string, fallback: EvalExpectation): Ev
   return fallback;
 }
 
+/** Persist arrays as an envelope so `[]` is scored as must_not_flag, not must_find. */
+export function wrapExpectedOutput(value: unknown, expectation: EvalExpectation): unknown {
+  if (Array.isArray(value)) return { expectation, findings: value };
+  return value;
+}
+
 export function firstFinding(
   raw: unknown,
-): { title?: unknown; file?: unknown; start_line?: unknown; severity?: unknown; category?: unknown } | undefined {
+): {
+  title?: unknown;
+  file?: unknown;
+  start_line?: unknown;
+  end_line?: unknown;
+  severity?: unknown;
+  category?: unknown;
+} | undefined {
   const findings = Array.isArray(raw)
     ? raw
     : raw && typeof raw === "object"
       ? (raw as { findings?: unknown }).findings
       : null;
   if (!Array.isArray(findings) || findings.length === 0) return undefined;
-  return findings[0] as { title?: unknown; file?: unknown; start_line?: unknown; severity?: unknown; category?: unknown };
+  return findings[0] as {
+    title?: unknown;
+    file?: unknown;
+    start_line?: unknown;
+    end_line?: unknown;
+    severity?: unknown;
+    category?: unknown;
+  };
 }
 
 export function firstFindingTitle(raw: unknown): string | undefined {
@@ -114,6 +162,18 @@ export function firstFindingFile(raw: unknown): string | undefined {
 export function firstFindingLine(raw: unknown): number | undefined {
   const line = firstFinding(raw)?.start_line;
   return typeof line === "number" ? line : undefined;
+}
+
+export function firstFindingEndLine(raw: unknown): number | undefined {
+  const line = firstFinding(raw)?.end_line;
+  return typeof line === "number" ? line : undefined;
+}
+
+/** Single line stays "11"; a range becomes "2-15". */
+export function lineRangeLabel(start?: number, end?: number): string | undefined {
+  if (typeof start !== "number") return undefined;
+  if (typeof end === "number" && end !== start) return `${start}-${end}`;
+  return String(start);
 }
 
 export type DiffLine = { kind: "add" | "del" | "ctx" | "hunk" | "file"; text: string };
@@ -140,6 +200,18 @@ export function previewDiffLines(diff: string): DiffLine[] {
     }
   }
   return out;
+}
+
+/** Whether a case row should show an in-flight loader. */
+export function isEvalCaseBusy(input: {
+  caseId: string;
+  runningCaseId?: string | null;
+  setRunActive: boolean;
+  finishedCaseIds: readonly string[];
+}): boolean {
+  if (input.runningCaseId === input.caseId) return true;
+  if (!input.setRunActive) return false;
+  return !input.finishedCaseIds.includes(input.caseId);
 }
 
 export function seedToInitial(seed: EvalCaseDraft): {

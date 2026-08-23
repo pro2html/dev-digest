@@ -3,7 +3,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Modal, Toggle } from "@devdigest/ui";
-import type { EvalCaseDraft, EvalCaseListItem, EvalOwnerKind, EvalRunResult } from "@devdigest/shared";
+import type { EvalCaseDraft, EvalCaseListItem, EvalExpectation, EvalOwnerKind, EvalRunResult } from "@devdigest/shared";
 import { ApiError } from "../../lib/api";
 import {
   useCreateEvalCase,
@@ -15,17 +15,23 @@ import { CaseBanner } from "./CaseBanner";
 import { CaseExpectedColumn, type LastRunSummary } from "./CaseExpectedColumn";
 import { CaseInputColumn } from "./CaseInputColumn";
 import {
+  displayExpectedCount,
   expectationFromJson,
   filesPayload,
+  firstFindingEndLine,
   firstFindingFile,
   firstFindingLine,
   firstFindingTitle,
   insertFindingSkeleton,
+  lineRangeLabel,
   parseFilePaths,
   parseJson,
   parseMeta,
+  seedOverridesExisting,
   seedToInitial,
+  stringifyActual,
   stringifyExpected,
+  wrapExpectedOutput,
   type InputTab,
 } from "./helpers";
 
@@ -48,6 +54,7 @@ export function CaseEditor({
   const update = useUpdateEvalCase(ownerKind, ownerId);
   const run = useRunEvalCase(ownerKind, ownerId);
 
+  const staleExisting = seedOverridesExisting(existing, seed);
   const seeded = seedToInitial(
     seed ?? {
       owner_kind: ownerKind,
@@ -67,7 +74,7 @@ export function CaseEditor({
   );
   const meta0 = parseMeta(existing?.input_meta ?? seed?.input_meta);
 
-  const [name, setName] = React.useState(existing?.name ?? seeded.name);
+  const [name, setName] = React.useState(staleExisting ? seeded.name : (existing?.name ?? seeded.name));
   const [diff, setDiff] = React.useState(existing?.input_diff ?? seeded.diff);
   const [filesText, setFilesText] = React.useState(
     parseFilePaths(existing?.input_files ?? seed?.input_files).join("\n"),
@@ -75,23 +82,36 @@ export function CaseEditor({
   const [title, setTitle] = React.useState(meta0.title);
   const [body, setBody] = React.useState(meta0.body);
   const [expected, setExpected] = React.useState(
-    existing?.expected_output != null ? stringifyExpected(existing.expected_output) : seeded.expected,
+    staleExisting
+      ? seeded.expected
+      : existing?.expected_output != null
+        ? stringifyExpected(existing.expected_output)
+        : seeded.expected,
   );
   const [tab, setTab] = React.useState<InputTab>("diff");
-  const [runOnSave, setRunOnSave] = React.useState(Boolean(seed));
+  const [runOnSave, setRunOnSave] = React.useState(false);
+  const [busyAction, setBusyAction] = React.useState<"save" | "run" | null>(null);
   const [fieldError, setFieldError] = React.useState<string | null>(null);
   const [lastResult, setLastResult] = React.useState<EvalRunResult | null>(null);
   const [savedId, setSavedId] = React.useState(existing?.id ?? null);
 
   const json = parseJson(expected);
   const jsonOk = json.ok;
-  const busy = create.isPending || update.isPending || run.isPending || fromFinding.isPending;
-  const canSubmit = name.trim().length > 0 && jsonOk && !busy;
-  const expectation = expectationFromJson(expected, existing?.expectation ?? seed?.expectation ?? "must_find");
+  const formOk = name.trim().length > 0 && jsonOk;
+  const saving = busyAction === "save";
+  const running = busyAction === "run";
+  const canSubmit = formOk && !saving && !running;
+  const expectation = expectationFromJson(
+    expected,
+    (staleExisting ? seed?.expectation : existing?.expectation) ?? seed?.expectation ?? "must_find",
+  );
   const expectedRaw = json.ok ? json.value : existing?.expected_output;
   const findingTitle = seed?.finding_title || firstFindingTitle(expectedRaw);
   const findingFile = seed?.finding_file || firstFindingFile(expectedRaw);
-  const findingLine = seed?.start_line || firstFindingLine(expectedRaw);
+  const findingLine = lineRangeLabel(
+    seed?.start_line || firstFindingLine(expectedRaw),
+    seed?.end_line ?? firstFindingEndLine(expectedRaw),
+  );
 
   const subtitle = seed
     ? t("caseEditor.seededSubtitle", {
@@ -100,7 +120,7 @@ export function CaseEditor({
     : t("caseEditor.subtitle");
 
   async function persist(): Promise<string | null> {
-    if (!canSubmit || !json.ok) return null;
+    if (!formOk || !json.ok) return null;
     setFieldError(null);
     const input = {
       owner_kind: ownerKind,
@@ -109,7 +129,7 @@ export function CaseEditor({
       input_diff: diff,
       input_files: filesPayload(filesText.split("\n")),
       input_meta: { title, body },
-      expected_output: json.value,
+      expected_output: wrapExpectedOutput(json.value, expectation),
       notes: existing?.notes ?? null,
     };
     try {
@@ -118,18 +138,32 @@ export function CaseEditor({
         return saved.id;
       }
       if (seed?.source_finding_id) {
-        const saved = await fromFinding.mutateAsync({
-          findingId: seed.source_finding_id,
-          input: {
-            name: input.name,
-            input_diff: input.input_diff,
-            input_files: input.input_files,
-            input_meta: input.input_meta,
-            expected_output: input.expected_output,
-          },
-        });
-        setSavedId(saved.id);
-        return saved.id;
+        try {
+          const saved = await fromFinding.mutateAsync({
+            findingId: seed.source_finding_id,
+            input: {
+              name: input.name,
+              input_diff: input.input_diff,
+              input_files: input.input_files,
+              input_meta: input.input_meta,
+              expected_output: input.expected_output,
+            },
+          });
+          setSavedId(saved.id);
+          return saved.id;
+        } catch (err) {
+          if (err instanceof ApiError && err.code === "eval_case_exists") {
+            const id = (err.details as { case_id?: string } | undefined)?.case_id;
+            if (!id) {
+              setFieldError(err.message);
+              return null;
+            }
+            setSavedId(id);
+            const saved = await update.mutateAsync({ id, input });
+            return saved.id;
+          }
+          throw err;
+        }
       }
       const saved = await create.mutateAsync(input);
       setSavedId(saved.id);
@@ -140,37 +174,45 @@ export function CaseEditor({
         setFieldError(field ? `${err.message} (${field})` : err.message);
         return null;
       }
-      if (err instanceof ApiError && err.code === "eval_case_exists") {
-        const id = (err.details as { case_id?: string } | undefined)?.case_id;
-        setFieldError(err.message);
-        if (id) setSavedId(id);
-        return id ?? null;
-      }
       setFieldError(err instanceof Error ? err.message : "Save failed");
       return null;
     }
   }
 
   async function save(andRun: boolean) {
-    const id = await persist();
-    if (!id) return;
-    if (andRun || runOnSave) {
-      const result = await run.mutateAsync(id);
-      setLastResult(result);
-    } else {
-      onClose();
+    if (!canSubmit) return;
+    setBusyAction("save");
+    try {
+      const id = await persist();
+      if (!id) return;
+      if (andRun || runOnSave) {
+        setBusyAction("run");
+        const result = await run.mutateAsync(id);
+        setLastResult(result);
+      } else {
+        onClose();
+      }
+    } finally {
+      setBusyAction(null);
     }
   }
 
   async function runCase() {
-    let id = savedId;
-    if (!id) id = await persist();
-    if (!id) return;
-    const result = await run.mutateAsync(id);
-    setLastResult(result);
+    if (!formOk || busyAction) return;
+    setBusyAction("run");
+    try {
+      const id = await persist();
+      if (!id) return;
+      const result = await run.mutateAsync(id);
+      setLastResult(result);
+    } finally {
+      setBusyAction(null);
+    }
   }
 
-  const lastSummary = lastRunSummary(lastResult, existing, seed);
+  const lastSummary =
+    staleExisting && !lastResult ? null : lastRunSummary(lastResult, existing, expectation, expectedRaw);
+  const actualText = stringifyActual(actualFromRun(lastResult));
 
   return (
     <Modal
@@ -187,11 +229,17 @@ export function CaseEditor({
           <Button kind="ghost" onClick={onClose}>
             {t("caseEditor.cancel")}
           </Button>
-          <Button kind="secondary" icon="Play" disabled={!canSubmit} onClick={() => void runCase()}>
+          <Button
+            kind="secondary"
+            icon="Play"
+            disabled={!formOk || saving}
+            loading={running}
+            onClick={() => void runCase()}
+          >
             {t("caseEditor.runCase")}
           </Button>
-          <Button kind="primary" icon="Check" disabled={!canSubmit} onClick={() => void save(false)}>
-            {busy ? t("caseEditor.saving") : t("caseEditor.save")}
+          <Button kind="primary" icon="Check" disabled={!formOk || saving} onClick={() => void save(false)}>
+            {saving ? t("caseEditor.saving") : t("caseEditor.save")}
           </Button>
         </div>
       }
@@ -219,6 +267,7 @@ export function CaseEditor({
             jsonOk={jsonOk}
             onSkeleton={() => setExpected((prev) => insertFindingSkeleton(prev))}
             lastSummary={lastSummary}
+            actual={actualText}
           />
         </div>
         {fieldError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{fieldError}</div>}
@@ -229,15 +278,17 @@ export function CaseEditor({
 
 function lastRunSummary(
   lastResult: EvalRunResult | null,
-  existing?: EvalCaseListItem | null,
-  seed?: EvalCaseDraft | null,
+  existing: EvalCaseListItem | null | undefined,
+  expectation: EvalExpectation,
+  expectedRaw: unknown,
 ): LastRunSummary | null {
+  const expected = expectedCountForBar(expectation, expectedRaw, existing);
   if (lastResult) {
     const actualRaw = lastResult.result.per_trace[0]?.actual as { findings?: unknown } | null | undefined;
     const actual = Array.isArray(actualRaw?.findings) ? actualRaw.findings.length : lastResult.result.traces_passed;
     return {
       passed: Boolean(lastResult.result.traces_passed),
-      expected: existing?.expected_count ?? (seed?.expectation === "must_not_flag" ? 0 : 1),
+      expected,
       actual,
       durationMs: lastResult.result.duration_ms,
       costUsd: lastResult.result.cost_usd,
@@ -246,11 +297,32 @@ function lastRunSummary(
   if (existing?.last_result && existing.last_result !== "never_run") {
     return {
       passed: existing.last_result === "passed",
-      expected: existing.expected_count,
+      expected,
       actual: existing.last_actual_count ?? 0,
       durationMs: 0,
       costUsd: null,
     };
   }
   return null;
+}
+
+function expectedCountForBar(
+  expectation: EvalExpectation,
+  expectedRaw: unknown,
+  existing?: EvalCaseListItem | null,
+): number {
+  const findings = Array.isArray(expectedRaw)
+    ? expectedRaw
+    : expectedRaw && typeof expectedRaw === "object"
+      ? (expectedRaw as { findings?: unknown }).findings
+      : undefined;
+  const stored = Array.isArray(findings) ? findings.length : (existing?.expected_count ?? 0);
+  return displayExpectedCount(expectation, stored);
+}
+
+function actualFromRun(lastResult: EvalRunResult | null): unknown {
+  if (!lastResult) return null;
+  const trace = lastResult.result.per_trace[0];
+  if (!trace) return null;
+  return trace.actual ?? { error: "Run failed with no actual output" };
 }
