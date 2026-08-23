@@ -2,7 +2,7 @@ import { reviewPullRequest } from '@devdigest/reviewer-core';
 import type { Finding, LLMProvider } from '@devdigest/shared';
 import { parseUnifiedDiff } from '../../adapters/index.js';
 import { parseExpectedOutput } from './expected-output.js';
-import { prDescriptionFromMeta } from './helpers.js';
+import { evalInputDiff, firstInputFilePath, prDescriptionFromMeta } from './helpers.js';
 import { aggregate, type AggregateMetrics } from './metrics.js';
 import type { ResolvedReviewerConfig } from './reviewer-config.js';
 import { scoreCase, type CaseScore, type ScoreableFinding } from './scorer.js';
@@ -10,6 +10,7 @@ import { scoreCase, type CaseScore, type ScoreableFinding } from './scorer.js';
 export type FrozenCase = {
   name: string;
   inputDiff: string;
+  inputFiles?: unknown;
   inputMeta?: unknown;
   expectedOutput: unknown;
 };
@@ -56,7 +57,8 @@ export async function executeFrozenCase(input: {
   }
 
   try {
-    const diff = parseUnifiedDiff(input.case.inputDiff);
+    const path = firstInputFilePath(input.case.inputFiles) ?? parsed.targets[0]?.file;
+    const diff = parseUnifiedDiff(evalInputDiff(path, input.case.inputDiff));
     const prDescription = prDescriptionFromMeta(input.case.inputMeta);
     const outcome = await reviewPullRequest({
       systemPrompt: input.config.systemPrompt,

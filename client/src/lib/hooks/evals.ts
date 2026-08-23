@@ -1,6 +1,7 @@
 /* hooks/evals.ts — React Query hooks for the eval pipeline. */
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   EvalCaseFromFinding,
@@ -38,7 +39,8 @@ export function useEvalOwnerDashboard(ownerKind: EvalOwnerKind, ownerId: string 
 }
 
 export function useEvalHistory(ownerKind: EvalOwnerKind, ownerId: string | null | undefined) {
-  return useQuery({
+  const qc = useQueryClient();
+  const query = useQuery({
     queryKey: ["eval-history", ownerKind, ownerId],
     queryFn: () => api.get<EvalSetRun[]>(`${ownerPath(ownerKind, ownerId!)}/runs`),
     enabled: !!ownerId,
@@ -47,6 +49,17 @@ export function useEvalHistory(ownerKind: EvalOwnerKind, ownerId: string | null 
       return rows?.some((r) => r.status === "queued" || r.status === "running") ? 1000 : false;
     },
   });
+  const inflight = query.data?.some((r) => r.status === "queued" || r.status === "running") ?? false;
+  const wasLive = useRef(false);
+  useEffect(() => {
+    if (!ownerId) return;
+    if (inflight || wasLive.current) {
+      void qc.invalidateQueries({ queryKey: ["eval-cases", ownerKind, ownerId] });
+      void qc.invalidateQueries({ queryKey: ["eval-dashboard", ownerKind, ownerId] });
+    }
+    wasLive.current = inflight;
+  }, [inflight, query.dataUpdatedAt, ownerKind, ownerId, qc]);
+  return query;
 }
 
 export function useEvalSetRun(runId: string | null | undefined) {

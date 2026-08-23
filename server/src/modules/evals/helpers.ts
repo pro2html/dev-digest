@@ -12,6 +12,7 @@ import type {
 } from '@devdigest/shared';
 import type { EvalSetRunRow, EvalCaseRow, EvalRunRow } from './types.js';
 import type { FindingForEval } from './repository.js';
+import { wrapFilePatch } from '../../adapters/git/diff-parser.js';
 import { parseExpectedOutput } from './expected-output.js';
 
 export function ownerKey(ownerKind: EvalOwnerKind, ownerId: string): string {
@@ -158,6 +159,29 @@ export function inputsEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** First path from `input_files` (`[{ path }]`, `[{ file }]`, or string[]). */
+export function firstInputFilePath(inputFiles: unknown): string | undefined {
+  if (!Array.isArray(inputFiles) || inputFiles.length === 0) return undefined;
+  const first = inputFiles[0];
+  if (typeof first === 'string') {
+    const path = first.trim();
+    return path || undefined;
+  }
+  if (!first || typeof first !== 'object') return undefined;
+  const rec = first as { path?: unknown; file?: unknown };
+  const path = typeof rec.path === 'string' ? rec.path : typeof rec.file === 'string' ? rec.file : '';
+  return path.trim() || undefined;
+}
+
+/**
+ * GitHub stores `pr_files.patch` as hunk-only text. Wrap it so parseUnifiedDiff
+ * (and therefore citation grounding) can see the file path. No-op when the
+ * patch already has `diff --git` / `+++` headers.
+ */
+export function evalInputDiff(path: string | undefined, patch: string): string {
+  return wrapFilePatch(path ?? '', patch);
+}
+
 /** `must-find-hardcoded-stripe-secret-key` — matches the eval-case mockup names. */
 export function slugCaseName(expectation: 'must_find' | 'must_not_flag', title: string): string {
   const prefix = expectation === 'must_find' ? 'must-find' : 'must-not-flag';
@@ -190,7 +214,7 @@ export function draftFromFinding(finding: FindingForEval): EvalCaseDraft {
     owner_kind: 'agent',
     owner_id: finding.reviewAgentId!,
     name: slugCaseName(expectation, finding.title),
-    input_diff: finding.patch ?? '',
+    input_diff: wrapFilePatch(finding.file, finding.patch ?? ''),
     input_files: [{ path: finding.file }],
     input_meta: { title: finding.prTitle, body: finding.prBody ?? '' },
     expected_output: expectedOutput,

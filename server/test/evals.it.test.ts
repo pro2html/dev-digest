@@ -192,6 +192,7 @@ d('evals routes (Testcontainers pg)', () => {
     title?: string;
     startLine?: number;
     endLine?: number;
+    patch?: string;
   }) {
     const name = `eval-repo-${repoSeq++}`;
     const [repo] = await pg.handle.db
@@ -221,7 +222,7 @@ d('evals routes (Testcontainers pg)', () => {
       path: 'src/config.ts',
       additions: 1,
       deletions: 0,
-      patch: DIFF,
+      patch: opts.patch ?? DIFF,
     });
     const [review] = await pg.handle.db
       .insert(t.reviews)
@@ -267,8 +268,32 @@ d('evals routes (Testcontainers pg)', () => {
     expect(body.owner_id).toBe(agent.id);
     expect(body.id).toBeTruthy();
     expect(body.input_diff).toContain('stripeKey');
+    expect(body.input_diff).toContain('diff --git a/src/config.ts b/src/config.ts');
     const createdFinding = body.expected_output?.findings?.[0];
     expect(createdFinding).toMatchObject({ file: 'src/config.ts', start_line: 11, end_line: 11 });
+    await app.close();
+  });
+
+  it('wraps a GitHub hunk-only pr_files.patch into a headed unified diff (eval grounding)', async () => {
+    const app = await appWith();
+    const agent = await createAgent(app);
+    const githubPatch = `@@ -10,3 +10,4 @@
+   port: 3000,
++  stripeKey: "sk_live_xxx",
+   redisUrl: x,`;
+    const finding = await insertFinding({
+      agentId: agent.id,
+      accepted: true,
+      title: 'Accepted leak',
+      patch: githubPatch,
+    });
+    const res = await app.inject({ method: 'POST', url: `/findings/${finding.id}/eval-case` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.input_diff).toContain('diff --git a/src/config.ts b/src/config.ts');
+    expect(body.input_diff).toContain('+++ b/src/config.ts');
+    expect(body.input_diff).toContain('stripeKey');
+    expect(body.input_diff).toContain(githubPatch.trim());
     await app.close();
   });
 

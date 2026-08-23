@@ -19,6 +19,8 @@ import {
   caseToListItem,
   currentNotApplicableOf,
   draftFromFinding,
+  evalInputDiff,
+  firstInputFilePath,
   inputsEqual,
   isUniqueViolation,
   ownerKey,
@@ -99,12 +101,16 @@ export class EvalsService {
       throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
     }
     const expectedOutput = asExpectedEnvelope(input.expected_output, parsed.expectation);
+    const inputDiff = evalInputDiff(
+      firstInputFilePath(input.input_files) ?? parsed.targets[0]?.file,
+      input.input_diff,
+    );
     const row = await this.repo.insertCase({
       workspaceId,
       ownerKind,
       ownerId,
       name: input.name,
-      inputDiff: input.input_diff,
+      inputDiff,
       inputFiles: input.input_files ?? null,
       inputMeta: input.input_meta ?? null,
       expectedOutput,
@@ -127,16 +133,20 @@ export class EvalsService {
       throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
     }
     const expectedOutput = asExpectedEnvelope(input.expected_output, parsed.expectation);
+    const inputDiff = evalInputDiff(
+      firstInputFilePath(input.input_files) ?? parsed.targets[0]?.file,
+      input.input_diff,
+    );
 
     const bump =
-      !inputsEqual(existing.inputDiff ?? '', input.input_diff) ||
+      !inputsEqual(existing.inputDiff ?? '', inputDiff) ||
       !inputsEqual(existing.inputFiles ?? null, input.input_files ?? null) ||
       !inputsEqual(existing.inputMeta ?? null, input.input_meta ?? null) ||
       !inputsEqual(existing.expectedOutput ?? null, expectedOutput);
 
     const row = await this.repo.updateCase(workspaceId, caseId, {
       name: input.name,
-      inputDiff: input.input_diff,
+      inputDiff,
       inputFiles: input.input_files ?? null,
       inputMeta: input.input_meta ?? null,
       expectedOutput,
@@ -187,6 +197,11 @@ export class EvalsService {
       throw new AppError(parsed.code, parsed.message, 422, { field: parsed.field });
     }
     const expectedOutput = asExpectedEnvelope(expectedRaw, parsed.expectation);
+    const inputFiles = overrides?.input_files ?? draft.input_files;
+    const inputDiff = evalInputDiff(
+      firstInputFilePath(inputFiles) ?? parsed.targets[0]?.file,
+      overrides?.input_diff ?? draft.input_diff,
+    );
 
     const existing = await this.repo.getCaseBySourceFinding(workspaceId, findingId);
     if (existing) {
@@ -215,8 +230,8 @@ export class EvalsService {
         ownerKind: 'agent',
         ownerId: draft.owner_id,
         name: overrides?.name ?? draft.name,
-        inputDiff: overrides?.input_diff ?? draft.input_diff,
-        inputFiles: overrides?.input_files ?? draft.input_files,
+        inputDiff,
+        inputFiles: inputFiles ?? null,
         inputMeta: overrides?.input_meta ?? draft.input_meta,
         expectedOutput,
         sourceFindingId: finding.id,
@@ -273,6 +288,7 @@ export class EvalsService {
       case: {
         name: row.name,
         inputDiff: row.inputDiff ?? '',
+        inputFiles: row.inputFiles,
         inputMeta: row.inputMeta,
         expectedOutput: row.expectedOutput,
       },
@@ -580,6 +596,7 @@ export class EvalsService {
           case: {
             name: latest.name,
             inputDiff: latest.inputDiff ?? '',
+            inputFiles: latest.inputFiles,
             inputMeta: latest.inputMeta,
             expectedOutput: latest.expectedOutput,
           },

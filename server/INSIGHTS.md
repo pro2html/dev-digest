@@ -274,6 +274,16 @@ entry short (what happened, what to do instead).
 
 **Action:** Treat `[]` as a negative case. Persist envelopes, not bare arrays. Upsert from-finding when the editor sends `expected_output`; keep 409 for a body-less duplicate click.
 
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** GitHub `pr_files.patch` / `files[].patch` is hunk-only (`@@ …` with no `diff --git` / `+++` headers). `parseUnifiedDiff` only assigns `files[].path` from those headers, then **drops** path-less files — so eval replay sees `files: []`, the grounding gate discards every finding (`file not present in diff`), and `must_find` scores **expected 1, got 0**. Live PR review already reconstructed headers in `diffFromPrFiles`; eval-from-finding used to persist the raw GitHub patch.
+
+**Why it matters:** Accept finding → Turn into eval → Run all looks identical to a live review but stores a different diff shape. The model can still emit findings (the raw patch is in the prompt), then grounding wipes them. Old DB rows stay hunk-only until re-saved.
+
+**Evidence:** `server/src/adapters/git/diff-parser.ts:10` (`wrapFilePatch`) and `:105` (`files.filter((f) => f.path)`); `server/src/modules/evals/helpers.ts:180` (`evalInputDiff`) / `:216` (`draftFromFinding`); `server/src/modules/evals/case-executor.ts` (wrap again at execute); `server/src/modules/evals/service.ts` (wrap on create/update/from-finding); `server/test/evals-helpers.test.ts` (raw GitHub patch → `files: []`; wrap → path present).
+
+**Action:** Always run GitHub patches through `wrapFilePatch` before `parseUnifiedDiff` — on persist **and** at execute (so old cases still score). Do not treat an in-hunk `+++ added` line as a file header; only the first line of the patch decides “already headed”.
+
 
 
 

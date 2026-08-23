@@ -264,6 +264,16 @@ entry short (what happened, what to do instead).
 
 **Action:** Always pass list/editor "expected N" through `displayExpectedCount`. Keep API `expected_count` as target length so `seedOverridesExisting` can still detect leftover targets (`expected_count > 0`).
 
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** `useStartEvalSetRun` invalidates `eval-cases` once when the set is **queued**. `useEvalHistory` polls while status is `queued`/`running`, but when the set completes the cases query is **not** refetched — rows stay `never_run` until a full reload, then show the real last result (e.g. expected 1, got 0).
+
+**Why it matters:** After “Run all”, the Agent Evals table looks like nothing ran. A reload then shows failures, so the demo looks broken even when scoring did finish.
+
+**Evidence:** `client/src/lib/hooks/evals.ts:41` (`useEvalHistory` `refetchInterval` on history only); `:54-61` (invalidate `eval-cases` / `eval-dashboard` while a set is in flight **or** just finished via `wasLive`); `useStartEvalSetRun` `onSuccess` → `invalidateOwner` (cases at start, not at completion).
+
+**Action:** When polling eval set-run history, also invalidate the cases/dashboard queries on each in-flight tick and once more when status leaves `queued`/`running`. Do not invalidate `eval-history` from that effect (that would loop).
+
 
 
 
