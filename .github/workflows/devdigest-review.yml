@@ -25,4 +25,4 @@ jobs:
           DEVDIGEST_INGEST_TOKEN: ${{ secrets.DEVDIGEST_INGEST_TOKEN }}
           DEVDIGEST_INGEST_URL: ${{ vars.DEVDIGEST_INGEST_URL }}
           DEVDIGEST_POST_AS: github_review
-        run: node .devdigest/runner.mjs review --agent performance-reviewer
+        run: node .devdigest/runner.mjs review --agent security-reviewer
