@@ -152,3 +152,15 @@ export async function setFindingDismissed(
     .returning();
   return row;
 }
+
+export async function clearFindingDecision(
+  db: Db,
+  findingId: string,
+): Promise<FindingRow | undefined> {
+  const [row] = await db
+    .update(t.findings)
+    .set({ acceptedAt: null, dismissedAt: null })
+    .where(eq(t.findings.id, findingId))
+    .returning();
+  return row;
+}

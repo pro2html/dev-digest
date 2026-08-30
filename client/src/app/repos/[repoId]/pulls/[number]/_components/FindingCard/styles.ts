@@ -46,7 +46,17 @@ export const s = {
   dismissedTag: {
     fontSize: 12,
     fontWeight: 600,
-    color: "var(--text-muted)",
+    color: "var(--crit)",
+  } satisfies CSSProperties,
+  acceptActive: {
+    color: "var(--ok)",
+    borderColor: "var(--ok)",
+    background: "var(--ok-bg)",
+  } satisfies CSSProperties,
+  dismissActive: {
+    color: "var(--crit)",
+    borderColor: "var(--crit)",
+    background: "var(--crit-bg)",
   } satisfies CSSProperties,
   metaRow: {
     display: "flex",

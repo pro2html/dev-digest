@@ -64,7 +64,7 @@ export function Button({
     ghost: { background: "var(--bg-hover)", color: "var(--text-primary)" },
     danger: { background: "var(--crit-bg)", borderColor: "var(--crit)" },
   };
-  const hover = h ? hoverMap[kind] : {};
+  const hover = !disabled && !loading && h ? hoverMap[kind] : {};
   return (
     <button
       {...rest}

@@ -2,17 +2,25 @@
   "dashboard": {
     "defaultTitle": "Eval Dashboard",
     "loading": "Loading eval metrics…",
+    "subtitle": "Regression harness across all reviewer agents · pick an agent to see its runs",
+    "ownerSubtitle": "Regression harness · {runs, plural, one {# run} other {# runs}} on the gold set",
     "casesSummary": "{count, plural, one {# eval case} other {# eval cases}} · gold set · {runs, plural, one {# run} other {# runs}}",
     "configure": "Configure eval cases →",
-    "runEval": "Run eval ({count})",
+    "runEval": "Run eval",
     "running": "Running…",
-    "metricTrend": "Metric trend",
-    "recentRuns": "Recent runs",
+    "metricTrend": "METRIC TREND",
+    "recentRuns": "RECENT RUNS",
+    "recentRunsAll": "RECENT EVAL RUNS · ALL AGENTS",
+    "agentsHeading": "AGENTS",
     "noRuns": "No runs yet. Create an eval case and run it.",
+    "allAgents": "All agents",
+    "lastRun": "Last run v{version} · {when} · {passed}/{total} pass",
     "metrics": {
       "recall": "RECALL",
       "precision": "PRECISION",
-      "citationAccuracy": "CITATION ACCURACY"
+      "citationAccuracy": "CITATION ACCURACY",
+      "prec": "PREC",
+      "cite": "CITE"
     },
     "legend": {
       "recall": "Recall",
@@ -21,6 +29,8 @@
     },
     "table": {
       "ranAt": "Ran at",
+      "agent": "Agent",
+      "version": "Version",
       "recall": "Recall",
       "precision": "Precision",
       "citation": "Citation",
@@ -28,46 +38,72 @@
       "cost": "Cost"
     },
     "pass": "pass",
-    "fail": "fail"
+    "fail": "fail",
+    "runAllAgents": "Run all agents",
+    "runAllReport": "Started {started} run(s); skipped {skipped} agent(s).",
+    "selected": "{count} selected",
+    "viewFullDashboard": "View full dashboard →"
   },
   "caseEditor": {
     "newCase": "New eval case",
     "caseTitle": "Eval case · {name}",
+    "subtitle": "Simulate a PR and assert the expected output.",
+    "seededSubtitle": "Seeded from a {source} finding · assert the expected output.",
+    "sourceAccepted": "accepted",
+    "sourceDismissed": "dismissed",
     "runCase": "Run case",
     "running": "Running…",
     "save": "Save",
     "saving": "Saving…",
+    "cancel": "Cancel",
+    "runOnSave": "Run on save",
     "nameLabel": "Name",
     "namePlaceholder": "stripe-key-leak",
     "inputLabel": "Input",
     "tabs": {
       "diff": "Diff",
+      "files": "Files",
       "prMeta": "PR meta"
     },
     "diffPlaceholder": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,6 +10,7 @@\n+  stripeKey: \"sk_live_...\"",
+    "filesHint": "One path per line. Stored on the case and replayed with the frozen diff.",
+    "filesPlaceholder": "src/config.ts",
     "titleLabel": "Title",
     "titlePlaceholder": "Add Stripe integration",
     "bodyLabel": "Body",
     "bodyPlaceholder": "Wire up payments via Stripe SDK.",
     "preview": "Preview",
     "expectedOutput": "Expected output",
+    "actualOutput": "Actual output",
+    "actualEmpty": "Run the case to see what the reviewer returned — pass or fail.",
+    "findingSkeleton": "+ Finding skeleton",
     "validJson": "valid JSON",
     "invalidJson": "invalid JSON",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    "lastRunCounts": "expected {expected} finding, got {actual}",
+    "lastRunSummary": "expected {expected} finding, got {actual} · {duration} · {cost}",
+    "positiveBanner": "POSITIVE CASE MUST find “{title}” at {file}:{line}",
+    "negativeBanner": "NEGATIVE CASE MUST NOT FLAG “{title}” at {file}:{line}",
+    "positiveGeneric": "POSITIVE CASE MUST FIND the expected targets in the frozen diff.",
+    "negativeGeneric": "NEGATIVE CASE MUST NOT FLAG — any grounded finding fails this case."
   },
   "evalsTab": {
     "metricsTitle": "Eval metrics",
-    "metricsSubtitle": "Recall / Precision / Citation for this agent's eval cases",
+    "metricsSubtitle": "Recall / Precision / Citation for this owner's eval cases",
     "casesHeading": "Eval cases",
-    "newCase": "New case",
+    "newCase": "+ New eval case",
     "loadingCases": "Loading cases…",
     "emptyCases": "No eval cases yet. Create one to assert this agent's expected findings on a sample diff.",
     "neverRun": "never run",
     "passed": "passed",
     "failed": "failed",
-    "recallSuffix": " · recall {recall}%",
+    "passingBadge": "{passed} / {total} passing",
+    "casesCount": "{count, plural, one {# case} other {# cases}}",
+    "tracesPassed": "Traces passed",
+    "mustFind": "MUST FIND",
+    "mustNotFlag": "MUST NOT FLAG",
+    "assertEmpty": "assert empty",
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
@@ -80,5 +116,35 @@
     "crumbEvals": "Evals",
     "crumbNewCase": "New case",
     "crumbEvalCase": "Eval case"
+  },
+  "scoring": {
+    "mechanical": "Scoring is mechanical — a finding counts when file matches and line ranges overlap. No model call in the scorer."
+  },
+  "run": {
+    "all": "Run all evals",
+    "progress": "Running {finished}/{total}",
+    "cancel": "Cancel"
+  },
+  "compare": {
+    "title": "Compare runs · v{from} → v{to}",
+    "action": "Compare",
+    "needTwo": "Select exactly two runs of this owner to compare.",
+    "revisionWarning": "This comparison crosses a case input revision — the inputs are not identical.",
+    "notComparable": "Runs of different owners are not comparable.",
+    "systemPrompt": "System prompt"
+  },
+  "status": {
+    "partial": "partial",
+    "cancelled": "cancelled",
+    "failed": "failed"
+  },
+  "finding": {
+    "turnInto": "Turn into eval case",
+    "undecided": "Decide on the finding first.",
+    "exists": "An eval case already exists for this finding.",
+    "created": "Eval case created.",
+    "openCase": "Open case",
+    "openExisting": "Open existing",
+    "previewFailed": "Could not open eval case."
   }
 }

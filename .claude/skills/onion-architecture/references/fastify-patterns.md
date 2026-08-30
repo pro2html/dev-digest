@@ -36,6 +36,6 @@ app.post('/orders', { schema: createOrderSchema }, async (req, reply) => {
 
 ## Wiring and tests
 
-- One plugin per feature; composition root passes the already-wired service — plugins must not construct Infrastructure.
+- One plugin per feature; composition root passes the already-wired service — plugins must not construct Infrastructure (`new DrizzleX()` at module scope in `routes.ts` is a composition-root leak, even if Application is already typed to a port).
 - Centralize error → HTTP status in `setErrorHandler` via typed Application/Domain errors.
 - Route tests mock the use case; Application unit tests mock Ports (no DB, no `app.inject()` needed for business rules).

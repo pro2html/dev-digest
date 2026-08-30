@@ -224,4 +224,66 @@ entry short (what happened, what to do instead).
 
 **Action:** Keep the 429 → `rate_limited` branch in the global error handler, after `AppError` and before the `internal_error` fallback. Do not rely on Fastify's default error body.
 
+## 2026-08-22 — Context
+
+**Insight:** `server/src/vendor/shared/contracts/eval-ci.ts` and the client twin are already *not* byte-identical: the server copy has `AgentManifest` + extra `Provider`/`CiFailOn` imports. The 2026-07-31 “keep both copies identical” rule still applies to *new* schemas, but a whole-file `diff` will not be empty.
+
+**Why it matters:** A plan-verifier that requires the two `eval-ci.ts` files to be byte-identical will fail on pre-existing drift, not on the L06 additions.
+
+**Evidence:** Server file imports `Provider, CiFailOn` and defines `AgentManifest`; client file does neither. Additive L06 schemas (`EvalSetRun`, `EvalCaseListItem`, …) were appended to both.
+
+**Action:** When adding eval contracts, copy the new block into both files. Do not “sync” the pre-existing `AgentManifest` gap unless a plan explicitly owns that cleanup.
+
+## 2026-08-22 — Decision
+
+**Insight:** Existing `EvalDashboard.current` is a required object. AC-46 needs a nullable current, so the owner dashboard responds with `EvalOwnerDashboard` (`omit` + `extend`) rather than mutating `EvalDashboard`.
+
+**Why it matters:** Pointing Fastify `response` at `EvalDashboard` would force placeholder zeros (or strip a null) and make the empty-history state indistinguishable from a real 0/0 score.
+
+**Evidence:** `EvalDashboard` in both `eval-ci.ts` copies; `EvalOwnerDashboard` used by `GET /evals/owners/:ownerKind/:ownerId/dashboard`.
+
+**Action:** Keep `EvalDashboard` untouched. New nullable-current needs go on `EvalOwnerDashboard`.
+
+## 2026-08-22 — Recurring Error & Fix
+
+**Insight:** A Fastify + zod `body: Schema.default({})` does **not** accept a missing POST body. `app.inject()` (and `api.post(path)` with no payload) delivers `null`, and Zod `.default()` only substitutes `undefined` — validation returns 422 before the handler runs.
+
+**Why it matters:** One-click `POST /findings/:id/eval-case` (no overrides) 422s even for undecided findings, so tests never reach `finding_not_decided` / create. Adding an optional-overrides body schema silently broke the original empty POST.
+
+**Evidence:** `server/src/modules/evals/routes.ts:184` (`z.preprocess((v) => (v == null ? {} : v), EvalCaseFromFindingInput)`); `server/test/evals.it.test.ts` injects POST with no `payload`. Client `api.post` omits `content-type` when `body` is missing (`client/src/lib/api.ts:27-30`).
+
+**Action:** For optional JSON bodies, preprocess `null`/`undefined` to `{}` (or omit `schema.body` and `safeParse` in the handler). Do not rely on `.default({})` alone.
+
+## 2026-08-23 — Context
+
+**Insight:** Skill Evals in the product are Postgres `eval_cases` rows keyed by `owner_kind='skill'` + `skills.id`. The repo-local `evals/skills/<name>/` harness never appears in that tab, and "Turn into eval case" always owns the **agent** that produced the finding.
+
+**Why it matters:** Adding judged cases under `evals/skills/` (or accepting findings on a PR) leaves every skill's Evals tab empty. Demo/lab cases have to be inserted into `eval_cases` during seed, looked up by skill name.
+
+**Evidence:** `server/src/db/seed-eval-cases.ts:251` (`seedCoverageNudgeEvalCases` upserts by skill name + case name); `server/src/db/seed.ts:340` (called after seed skills); `server/src/modules/evals/helpers.ts:190` (`draftFromFinding` hard-codes `owner_kind: 'agent'`).
+
+**Action:** To show cases on a skill in Skills Lab, write `eval_cases` with that skill's UUID. Keep `evals/` filesystem cases for the Claude harness only.
+
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** A bare `[]` in `expected_output` is not an invalid `must_find`. It is `must_not_flag` (0 targets). Writes must store the envelope `{ expectation, findings }` so a later GET cannot re-parse `[]` as `must_find`. `POST /findings/:id/eval-case` with overrides updates the existing row; an empty duplicate POST still returns `eval_case_exists`.
+
+**Why it matters:** After Accept creates a 1-target case, Dismiss + Run with empty expected still scored `must_find` / expected 1 until the parser and upsert changed.
+
+**Evidence:** `server/src/modules/evals/expected-output.ts:60` (`[]` → `must_not_flag`); `expected-output.ts:107` (`asExpectedEnvelope`); `server/src/modules/evals/service.ts:193` (`hasFindingCaseOverride` → `updateCase`). Empty POST still 409s (`server/test/evals.it.test.ts` AC-05).
+
+**Action:** Treat `[]` as a negative case. Persist envelopes, not bare arrays. Upsert from-finding when the editor sends `expected_output`; keep 409 for a body-less duplicate click.
+
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** GitHub `pr_files.patch` / `files[].patch` is hunk-only (`@@ …` with no `diff --git` / `+++` headers). `parseUnifiedDiff` only assigns `files[].path` from those headers, then **drops** path-less files — so eval replay sees `files: []`, the grounding gate discards every finding (`file not present in diff`), and `must_find` scores **expected 1, got 0**. Live PR review already reconstructed headers in `diffFromPrFiles`; eval-from-finding used to persist the raw GitHub patch.
+
+**Why it matters:** Accept finding → Turn into eval → Run all looks identical to a live review but stores a different diff shape. The model can still emit findings (the raw patch is in the prompt), then grounding wipes them. Old DB rows stay hunk-only until re-saved.
+
+**Evidence:** `server/src/adapters/git/diff-parser.ts:10` (`wrapFilePatch`) and `:105` (`files.filter((f) => f.path)`); `server/src/modules/evals/helpers.ts:180` (`evalInputDiff`) / `:216` (`draftFromFinding`); `server/src/modules/evals/case-executor.ts` (wrap again at execute); `server/src/modules/evals/service.ts` (wrap on create/update/from-finding); `server/test/evals-helpers.test.ts` (raw GitHub patch → `files: []`; wrap → path present).
+
+**Action:** Always run GitHub patches through `wrapFilePatch` before `parseUnifiedDiff` — on persist **and** at execute (so old cases still score). Do not treat an in-hunk `+++ added` line as a file header; only the first line of the patch decides “already headed”.
+
+
+
 

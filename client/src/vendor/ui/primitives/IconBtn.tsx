@@ -8,6 +8,8 @@ export function IconBtn({
   active,
   onClick,
   danger,
+  disabled,
+  loading,
 }: {
   icon: IconName;
   label: string;
@@ -15,13 +17,19 @@ export function IconBtn({
   active?: boolean;
   onClick?: () => void;
   danger?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
-  const I = Icon[icon];
+  const I = loading ? Icon.RefreshCw : Icon[icon];
   const [h, setH] = React.useState(false);
+  const isDisabled = Boolean(disabled || loading);
   return (
     <button
+      type="button"
       title={label}
       aria-label={label}
+      aria-busy={loading || undefined}
+      disabled={isDisabled}
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
@@ -32,12 +40,14 @@ export function IconBtn({
         placeItems: "center",
         borderRadius: 6,
         border: "1px solid transparent",
-        background: h ? "var(--bg-hover)" : active ? "var(--bg-hover)" : "transparent",
+        background: h && !isDisabled ? "var(--bg-hover)" : active ? "var(--bg-hover)" : "transparent",
         color: danger && h ? "var(--crit)" : active || h ? "var(--text-primary)" : "var(--text-secondary)",
+        opacity: isDisabled ? 0.6 : 1,
+        cursor: isDisabled ? "not-allowed" : undefined,
         transition: "background .12s, color .12s",
       }}
     >
-      <I size={Math.round(size * 0.52)} />
+      <I size={Math.round(size * 0.52)} style={loading ? { animation: "ddspin 1s linear infinite" } : undefined} />
     </button>
   );
 }

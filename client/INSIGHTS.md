@@ -204,3 +204,76 @@ entry short (what happened, what to do instead).
 
 **Action:** Never require `:line` on brief citations. Pin path-only (or out-of-hunk) markers to a visible changed line; `review_focus.line_start` is only a hint when present.
 
+## 2026-08-22 — Context
+
+**Insight:** `activeKeyFor("/eval")` already returned `"eval"` before the Eval Dashboard existed. The missing piece was the `NAV` / `SHORTCUTS` entry in vendored `nav.ts`, not the helper.
+
+**Why it matters:** Loosening `activeKeyFor` to a broader substring (or adding a second matcher) is unnecessary and risks colliding with future `/eval-*` routes.
+
+**Evidence:** `client/src/components/app-shell/helpers.ts` (`pathname.startsWith("/eval")`); helper test added for `/eval` and `/eval/:id`.
+
+**Action:** Add only the nav item + shortcut. Keep the existing `/eval*` match; assert it with a helper test rather than changing the matcher.
+
+## 2026-08-22 — Decision
+
+**Insight:** "Turn into eval case" opens the case editor via `GET /findings/:id/eval-case` (draft or existing). The row is created only on Save, through `POST /findings/:id/eval-case` with editor overrides. POSTing on the button click skips the mockup and cannot let the user edit expected output first.
+
+**Why it matters:** Reusing the original one-click POST as the button action looks simpler but never shows the two-column seeded modal (banner, Diff/Files/PR meta, Finding skeleton, Run case).
+
+**Evidence:** `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/FindingCard.tsx:67-71` (`useEvalCaseDraftFromFinding` then `setEditor`); `client/src/components/evals/CaseEditor.tsx:120-129` (POST with overrides only when `seed.source_finding_id` and no `savedId`). `stringifyExpected` unwraps a `must_find` envelope to a findings array (`client/src/components/evals/helpers.ts:39-40`) so the JSON pane matches the mockup; `parseExpectedOutput` already accepts a bare array.
+
+**Action:** Keep GET = preview, POST = create-from-editor. Do not POST from the finding action itself.
+
+## 2026-08-22 — Recurring Error & Fix
+
+**Insight:** Accepted/dismissed `FindingCard`s set `opacity: 0.6` on the card. That creates a stacking context: a nested `position: fixed` Modal inherits the 0.6 opacity and its `z-index` only competes inside the card, so the dialog looks transparent and slides under neighbouring findings.
+
+**Why it matters:** "Turn into eval case" is only enabled after accept/dismiss — exactly when the card is muted — so every seeded eval modal hit this unless it leaves the card's DOM.
+
+**Evidence:** `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:20` (`opacity: muted ? 0.6`); `client/src/vendor/ui/kit/Modal.tsx` portals to `document.body` after mount.
+
+**Action:** Overlay UI (`Modal`, `Drawer`) must `createPortal` to `document.body`. Do not render dialogs inside opacity/transform/overflow ancestors.
+
+## 2026-08-23 — Mistake
+
+**Insight:** React does not leak the eval modal. `Run case` calls `persist()` before scoring, so Cancel after a run still leaves a `must_find` row. The next GET returns that existing case plus a fresh dismissed `seed`. Initializing expected JSON from `existing` made the banner stay POSITIVE after Accept → Run → Cancel → Dismiss.
+
+**Why it matters:** Refines the 2026-08-22 Decision above: the row is created on Save *or* Run, not Save only. Flipping the finding's decision does not rewrite the stored case.
+
+**Evidence:** `client/src/components/evals/CaseEditor.tsx` (`runCase` → `persist`); `seedOverridesExisting` in `client/src/components/evals/helpers.ts`; GET `previewCaseFromFinding` returns `{ existing, draft }`.
+
+**Action:** When `seed.expectation !== existing.expectation`, initialize name + expected output from the seed and keep `existing.id` so Save PATCHes the same row. Remount the editor with a key that includes expectation.
+
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** Re-seeding the dismiss modal to `[]` is not enough. Persist used to send a bare array, which the API treated as `must_find` (and `eval_case_exists` then ran the old 1-target row). `[]` must be wrapped as `{ expectation: "must_not_flag", findings: [] }` before save; a 409 must PATCH that envelope, then Run.
+
+**Why it matters:** Accept → Run → Dismiss → Run still showed "expected 1 finding, got 0" even when the textarea was empty, because scoring read the stored `must_find` case.
+
+**Evidence:** `client/src/components/evals/helpers.ts:116` (`wrapExpectedOutput`); `client/src/components/evals/CaseEditor.tsx:131` (persist wraps arrays); `CaseEditor.tsx:154` (409 → PATCH); `CaseEditor.tsx:213` (hide stale last-run bar when the seed flipped).
+
+**Action:** Never persist a bare `[]` as expected output. On `eval_case_exists`, PATCH then run — do not score the leftover `must_find` row. Hide `existing.last_result` until the flipped case has been run.
+
+## 2026-08-23 — Mistake
+
+**Insight:** `expected_count` on an eval case row is `targets.length`, not "how many findings the agent should produce". A `must_not_flag` case can still store a forbidden finding (AC-02), so the API reports `expected_count: 1` while scoring treats the case as assert-empty (`targetCount: 0`). The agent Evals list used the raw count and showed "expected 1 finding, got 0" on a passing negative case.
+
+**Why it matters:** Refines the persist/`[]` entry above: emptying expected JSON (or wrapping `must_not_flag`) is not enough if the list still prints `expected_count`. The editor bar already forced 0; the row did not. Fail text for MUST NOT FLAG is "expected 0, got N", never "expected 1, got 0".
+
+**Evidence:** `client/src/components/evals/helpers.ts:42` (`displayExpectedCount`); `client/src/components/evals/CaseRow.tsx:75`; scorer hardcodes `targetCount: 0` for `must_not_flag` in `server/src/modules/evals/scorer.ts`.
+
+**Action:** Always pass list/editor "expected N" through `displayExpectedCount`. Keep API `expected_count` as target length so `seedOverridesExisting` can still detect leftover targets (`expected_count > 0`).
+
+## 2026-08-23 — Recurring Error & Fix
+
+**Insight:** `useStartEvalSetRun` invalidates `eval-cases` once when the set is **queued**. `useEvalHistory` polls while status is `queued`/`running`, but when the set completes the cases query is **not** refetched — rows stay `never_run` until a full reload, then show the real last result (e.g. expected 1, got 0).
+
+**Why it matters:** After “Run all”, the Agent Evals table looks like nothing ran. A reload then shows failures, so the demo looks broken even when scoring did finish.
+
+**Evidence:** `client/src/lib/hooks/evals.ts:41` (`useEvalHistory` `refetchInterval` on history only); `:54-61` (invalidate `eval-cases` / `eval-dashboard` while a set is in flight **or** just finished via `wasLive`); `useStartEvalSetRun` `onSuccess` → `invalidateOwner` (cases at start, not at completion).
+
+**Action:** When polling eval set-run history, also invalidate the cases/dashboard queries on each in-flight tick and once more when status leaves `queued`/`running`. Do not invalidate `eval-history` from that effect (that would loop).
+
+
+
+

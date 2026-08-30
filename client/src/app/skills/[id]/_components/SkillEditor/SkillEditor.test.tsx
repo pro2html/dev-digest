@@ -3,7 +3,17 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Skill } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/skills.json";
+import evalMessages from "../../../../../../messages/en/eval.json";
 import { ToastProvider } from "../../../../../lib/toast";
+
+vi.mock("../../../../../components/evals/EvalsTab", () => ({
+  EvalsTab: ({ ownerKind }: { ownerKind: string }) => (
+    <div>
+      <h2>Eval metrics</h2>
+      <p data-testid="evals-owner">{ownerKind}</p>
+    </div>
+  ),
+}));
 
 vi.mock("../../../../../lib/hooks/skills", () => ({
   useUpdateSkill: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, data: undefined }),
@@ -40,7 +50,7 @@ const SKILL: Skill = {
 
 function renderEditor(tab = "config") {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ skills: messages, eval: evalMessages }}>
       <ToastProvider>
         <SkillEditor skill={SKILL} tab={tab} onTab={() => {}} />
       </ToastProvider>
@@ -67,5 +77,12 @@ describe("SkillEditor", () => {
     const textarea = screen.getByDisplayValue(/# Coverage/);
     fireEvent.change(textarea, { target: { value: "# Coverage\nChanged body" } });
     expect(screen.getAllByText("unsaved").length).toBeGreaterThan(0);
+  });
+
+  it("opens the Evals tab without an agent selector (AC-53)", () => {
+    renderEditor("evals");
+    expect(screen.getByText("Eval metrics")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/agent/i)).not.toBeInTheDocument();
   });
 });

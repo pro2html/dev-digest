@@ -4,9 +4,26 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import type { ReactElement } from "react";
 import messages from "../../../../../../../../messages/en/prReview.json";
+import evalMessages from "../../../../../../../../messages/en/eval.json";
 
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("../../../../../../../lib/hooks/evals", () => ({
+  useEvalCaseDraftFromFinding: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: undefined,
+  }),
+  useCreateEvalCaseFromFinding: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isSuccess: false,
+    data: undefined,
+    error: undefined,
+  }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
@@ -40,7 +57,7 @@ const FINDINGS: FindingRecord[] = [
 
 function renderWithIntl(ui: ReactElement): RenderResult {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ prReview: messages, eval: evalMessages }}>
       {ui}
     </NextIntlClientProvider>,
   );

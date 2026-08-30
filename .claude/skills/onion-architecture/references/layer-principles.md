@@ -59,4 +59,11 @@ defined by allowed dependencies, not folder names.
 
 **Only place allowed to** import a concrete adapter *and* the Application code that consumes it.
 
-**Common leak:** per-route/module local `new Adapter()` — N composition roots instead of one.
+**Common leak:** per-route/module local `new Adapter()` — N composition roots instead of one. Flag that **separately** from "constructor typed to the concrete class":
+
+```typescript
+// Bad — routes.ts is a second composition root (finding 3), even if
+// NotificationService already takes the port (finding 2 would be clean).
+const repository = new DrizzleNotificationRepository();
+const service = new NotificationService(repository);
+```

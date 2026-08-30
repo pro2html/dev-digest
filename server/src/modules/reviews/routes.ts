@@ -16,9 +16,9 @@ import { RunSummaryDto } from './summary-dto.js';
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /runs/:id/summary                           → compact run + review (MCP get_findings)
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
- *   POST   /findings/:id/(accept|dismiss)              → finding actions
+ *   POST   /findings/:id/(accept|dismiss|undecide)     → finding actions
  */
-const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
+const FINDING_ACTIONS = ['accept', 'dismiss', 'undecide'] as const;
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;

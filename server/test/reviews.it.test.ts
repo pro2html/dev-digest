@@ -296,6 +296,12 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(dismissed.finding.dismissed_at).not.toBeNull();
     expect(dismissed.finding.accepted_at).toBeNull();
 
+    const undone = (
+      await app.inject({ method: 'POST', url: `/findings/${findingId}/undecide` })
+    ).json();
+    expect(undone.finding.accepted_at).toBeNull();
+    expect(undone.finding.dismissed_at).toBeNull();
+
     await app.close();
   });
 

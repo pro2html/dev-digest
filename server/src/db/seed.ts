@@ -11,6 +11,7 @@ import {
   TEST_CORNER_CASES_BODY,
   PR_QUALITY_RUBRIC_BODY,
 } from './seed-prompts.js';
+import { seedCoverageNudgeEvalCases } from './seed-eval-cases.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -23,8 +24,9 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
  * with a few findings, the four built-in agents (General + Security +
- * Performance + Test Quality), and three seed skills linked to Test Quality
- * Reviewer — all on the default openrouter/deepseek-v4-flash provider+model.
+ * Performance + Test Quality), three seed skills linked to Test Quality
+ * Reviewer, and five frozen eval cases on `test-coverage-nudge` — all on the
+ * default openrouter/deepseek-v4-flash provider+model.
  *
  * The fourth demo skill (`api-contract-breaking-change`) is imported via the UI
  * from `docs/sample-skills/` (not seeded).
@@ -334,6 +336,8 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         .onConflictDoNothing();
     }
   }
+
+  await seedCoverageNudgeEvalCases(db, workspaceId);
 
   return { workspaceId, userId };
 }

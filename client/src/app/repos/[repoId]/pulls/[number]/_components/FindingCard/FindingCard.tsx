@@ -8,6 +8,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import {
   Icon,
+  IconBtn,
   SeverityBadge,
   CategoryTag,
   MonoLink,
@@ -18,10 +19,14 @@ import {
   type Category,
 } from "@devdigest/ui";
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
+import { ApiError } from "../../../../../../../lib/api";
+import { CaseEditor } from "../../../../../../../components/evals/CaseEditor";
+import { useEvalCaseDraftFromFinding } from "../../../../../../../lib/hooks/evals";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
 import { s } from "./styles";
+import type { EvalCaseFromFinding } from "@devdigest/shared";
 
 export function FindingCard({
   f,
@@ -41,7 +46,10 @@ export function FindingCard({
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
+  const te = useTranslations("eval.finding");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const [editor, setEditor] = React.useState<EvalCaseFromFinding | null>(null);
+  const preview = useEvalCaseDraftFromFinding();
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -50,8 +58,26 @@ export function FindingCard({
   const accepted = !!f.accepted_at;
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
+  const evalError =
+    preview.error instanceof ApiError
+      ? preview.error.code === "finding_not_decided"
+        ? te("undecided")
+        : preview.error.message
+      : null;
+
+  async function onTurnIntoEval(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!muted) return;
+    try {
+      const data = await preview.mutateAsync(f.id);
+      setEditor(data);
+    } catch {
+      /* error rendered via evalError */
+    }
+  }
 
   return (
+    <>
     <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
       <div onClick={() => setExpanded((e) => !e)} style={s.header}>
         <div style={s.badgeWrap}>
@@ -93,8 +119,9 @@ export function FindingCard({
               kind="secondary"
               size="sm"
               icon="Check"
-              disabled={pending}
+              disabled={pending || dismissed}
               active={accepted}
+              style={accepted ? s.acceptActive : undefined}
               onClick={() => onAction?.("accept")}
             >
               {t("finding.accept")}
@@ -103,15 +130,52 @@ export function FindingCard({
               kind="ghost"
               size="sm"
               icon="X"
-              disabled={pending}
+              disabled={pending || accepted}
               active={dismissed}
+              style={dismissed ? s.dismissActive : undefined}
               onClick={() => onAction?.("dismiss")}
             >
               {t("finding.dismiss")}
             </Button>
+            <IconBtn
+              icon="Undo2"
+              label={t("finding.undo")}
+              size={30}
+              disabled={!muted || pending}
+              onClick={() => {
+                if (!muted) return;
+                onAction?.("undecide");
+                setEditor(null);
+              }}
+            />
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="FlaskConical"
+              disabled={!muted || preview.isPending}
+              title={!muted ? te("undecided") : undefined}
+              onClick={(e) => void onTurnIntoEval(e)}
+            >
+              {te("turnInto")}
+            </Button>
           </div>
+          {evalError && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--danger)" }}>{evalError}</div>
+          )}
         </div>
       )}
+
     </div>
+    {editor && (
+      <CaseEditor
+        key={`${editor.draft.source_finding_id}:${editor.draft.expectation}:${editor.existing?.id ?? "new"}`}
+        ownerKind={editor.existing?.owner_kind ?? editor.draft.owner_kind}
+        ownerId={editor.existing?.owner_id ?? editor.draft.owner_id}
+        existing={editor.existing}
+        seed={editor.draft}
+        onClose={() => setEditor(null)}
+      />
+    )}
+    </>
   );
 }

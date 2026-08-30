@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Verdict, Finding } from './findings.js';
-import { EvalRun, EvalOwnerKind, Conformance, Provider, CiFailOn } from './knowledge.js';
+import { EvalCase, EvalRun, EvalOwnerKind, Conformance, Provider, CiFailOn } from './knowledge.js';
 
 /**
  * A4 — Eval / CI / Compose / Conformance API contracts (L06).
@@ -87,6 +87,197 @@ export const EvalDashboard = z.object({
   alert: z.string().nullable(),
 });
 export type EvalDashboard = z.infer<typeof EvalDashboard>;
+
+// ===========================================================================
+// Eval — whole-set runs, case list, compare, workspace dashboard (L06)
+// Additive only — existing EvalCase / EvalRun / EvalDashboard stay unchanged.
+// ===========================================================================
+
+export const EvalSetRunStatus = z.enum([
+  'queued',
+  'running',
+  'complete',
+  'partial',
+  'cancelled',
+  'failed',
+]);
+export type EvalSetRunStatus = z.infer<typeof EvalSetRunStatus>;
+
+export const EvalCaseResult = z.enum(['passed', 'failed', 'errored']);
+export type EvalCaseResult = z.infer<typeof EvalCaseResult>;
+
+export const EvalExpectation = z.enum(['must_find', 'must_not_flag']);
+export type EvalExpectation = z.infer<typeof EvalExpectation>;
+
+export const EvalExpectedFinding = z.object({
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int().optional(),
+  severity: z.string().optional(),
+  category: z.string().optional(),
+  title: z.string().optional(),
+});
+export type EvalExpectedFinding = z.infer<typeof EvalExpectedFinding>;
+
+/** Envelope stored in `expected_output`. A bare array is `must_find`. */
+export const EvalExpectedOutput = z.union([
+  z.object({
+    expectation: EvalExpectation,
+    findings: z.array(EvalExpectedFinding),
+  }),
+  z.array(EvalExpectedFinding),
+]);
+export type EvalExpectedOutput = z.infer<typeof EvalExpectedOutput>;
+
+export const EvalLastResult = z.enum(['passed', 'failed', 'never_run']);
+export type EvalLastResult = z.infer<typeof EvalLastResult>;
+
+export const EvalCaseListItem = EvalCase.extend({
+  expectation: EvalExpectation,
+  expected_count: z.number().int(),
+  input_revision: z.number().int(),
+  last_result: EvalLastResult,
+  last_actual_count: z.number().int().nullable(),
+  last_recall: z.number().nullable(),
+});
+export type EvalCaseListItem = z.infer<typeof EvalCaseListItem>;
+
+/** Preview of a case seeded from a finding (GET /findings/:id/eval-case). */
+export const EvalCaseDraft = z.object({
+  owner_kind: EvalOwnerKind,
+  owner_id: z.string().uuid(),
+  name: z.string(),
+  input_diff: z.string(),
+  input_files: z.unknown().nullable(),
+  input_meta: z.unknown().nullable(),
+  expected_output: z.unknown(),
+  expectation: EvalExpectation,
+  finding_title: z.string(),
+  finding_file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int().optional(),
+  source: z.enum(['accepted', 'dismissed']),
+  source_finding_id: z.string().uuid(),
+});
+export type EvalCaseDraft = z.infer<typeof EvalCaseDraft>;
+
+export const EvalCaseFromFinding = z.object({
+  existing: EvalCaseListItem.nullable(),
+  draft: EvalCaseDraft,
+});
+export type EvalCaseFromFinding = z.infer<typeof EvalCaseFromFinding>;
+
+/** Optional overrides when creating from a finding via the case editor. */
+export const EvalCaseFromFindingInput = z.object({
+  name: z.string().min(1).optional(),
+  input_diff: z.string().optional(),
+  input_files: z.unknown().optional(),
+  input_meta: z.unknown().optional(),
+  expected_output: z.unknown().optional(),
+});
+export type EvalCaseFromFindingInput = z.infer<typeof EvalCaseFromFindingInput>;
+
+export const EvalSetRunCaseRecord = EvalRunRecord.extend({
+  case_input_revision: z.number().int().nullable(),
+  result: EvalCaseResult.nullable(),
+  error: z.string().nullable(),
+});
+export type EvalSetRunCaseRecord = z.infer<typeof EvalSetRunCaseRecord>;
+
+export const EvalSetRun = z.object({
+  id: z.string(),
+  owner_kind: EvalOwnerKind,
+  owner_id: z.string(),
+  owner_version: z.number().int(),
+  system_prompt: z.string(),
+  baseline_label: z.string().nullable(),
+  status: EvalSetRunStatus,
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+  cases_total: z.number().int(),
+  cases_finished: z.number().int(),
+  passed: z.number().int().nullable(),
+  recall: z.number().nullable(),
+  precision: z.number().nullable(),
+  citation_accuracy: z.number().nullable(),
+  recall_not_applicable: z.boolean().nullable(),
+  precision_not_applicable: z.boolean().nullable(),
+  citation_accuracy_not_applicable: z.boolean().nullable(),
+  cost_usd: z.number().nullable(),
+  duration_ms: z.number().int().nullable(),
+  per_case: z.array(EvalSetRunCaseRecord),
+});
+export type EvalSetRun = z.infer<typeof EvalSetRun>;
+
+export const EvalSetRunSummary = EvalSetRun.omit({ per_case: true, system_prompt: true });
+export type EvalSetRunSummary = z.infer<typeof EvalSetRunSummary>;
+
+export const EvalRunComparison = z.object({
+  a: EvalSetRun,
+  b: EvalSetRun,
+  delta: z.object({
+    recall: z.number().nullable(),
+    precision: z.number().nullable(),
+    citation_accuracy: z.number().nullable(),
+    cost_usd: z.number().nullable(),
+  }),
+  prompts: z.object({
+    a: z.string(),
+    b: z.string(),
+  }),
+  crosses_revision: z.boolean(),
+});
+export type EvalRunComparison = z.infer<typeof EvalRunComparison>;
+
+export const EvalWorkspaceAgentRow = z.object({
+  id: z.string(),
+  name: z.string(),
+  model: z.string(),
+  latest_complete: z
+    .object({
+      ran_at: z.string(),
+      owner_version: z.number().int(),
+      recall: z.number(),
+      precision: z.number(),
+      citation_accuracy: z.number(),
+      passed: z.number().int(),
+      cases_total: z.number().int(),
+    })
+    .nullable(),
+});
+export type EvalWorkspaceAgentRow = z.infer<typeof EvalWorkspaceAgentRow>;
+
+export const EvalWorkspaceDashboard = z.object({
+  agents: z.array(EvalWorkspaceAgentRow),
+  recent_runs: z.array(EvalSetRunSummary),
+});
+export type EvalWorkspaceDashboard = z.infer<typeof EvalWorkspaceDashboard>;
+
+/** Owner dashboard: existing EvalDashboard with nullable current/delta (AC-46). */
+export const EvalOwnerDashboard = EvalDashboard.omit({ current: true, delta: true }).extend({
+  current: EvalDashboard.shape.current.nullable(),
+  delta: EvalDashboard.shape.delta.nullable(),
+  current_not_applicable: z
+    .object({
+      recall: z.boolean(),
+      precision: z.boolean(),
+      citation_accuracy: z.boolean(),
+    })
+    .nullable(),
+});
+export type EvalOwnerDashboard = z.infer<typeof EvalOwnerDashboard>;
+
+export const EvalRunAllAgentsResult = z.object({
+  started: z.array(EvalSetRun),
+  skipped: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      reason: z.string(),
+    }),
+  ),
+});
+export type EvalRunAllAgentsResult = z.infer<typeof EvalRunAllAgentsResult>;
 
 // ===========================================================================
 // Compose Review
