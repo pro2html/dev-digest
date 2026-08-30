@@ -189,6 +189,7 @@ export default function PRDetailPage() {
 
         {tab === "findings" && (
           <FindingsTab
+            repoId={repoId}
             prId={prId}
             liveRunIds={liveRunIds}
             reviewRunning={reviewRunning}
@@ -214,6 +215,8 @@ export default function PRDetailPage() {
                 qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
                 qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
                 qc.invalidateQueries({ queryKey: ["pr-blast", prId] });
+                qc.invalidateQueries({ queryKey: ["multi-agent-list", prId] });
+                qc.invalidateQueries({ queryKey: ["multi-agent", prId] });
               }
             }}
           />

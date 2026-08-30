@@ -72,6 +72,14 @@ vi.mock("../../../../../lib/hooks/reviews", () => ({
   useDeleteRun: () => ({ mutate: vi.fn() }),
 }));
 
+vi.mock("../../../../../lib/hooks/multi-agent", () => ({
+  useMultiAgentRunsForPull: () => ({ data: { pr_id: "pr1", runs: [] } }),
+}));
+
+vi.mock("@/lib/hooks/multi-agent", () => ({
+  useMultiAgentRunsForPull: () => ({ data: { pr_id: "pr1", runs: [] } }),
+}));
+
 const briefRecord: WhyRiskBriefRecord = {
   pr_id: "pr1",
   generated_for_sha: "abc",

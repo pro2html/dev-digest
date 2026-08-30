@@ -4,12 +4,16 @@
  * a settled run is colored/labelled by its denormalized blocker/finding counts,
  * and shows the review score ring.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { MultiAgentRun, RunSummary } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
+
+vi.mock("next/link", () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+}));
 
 afterEach(cleanup);
 
@@ -138,5 +142,74 @@ describe("RunHistory — inline findings", () => {
 
     fireEvent.mouseEnter(screen.getByTestId("findings-indicator"));
     expect(screen.getByText("Hardcoded Stripe secret key")).toBeInTheDocument();
+  });
+});
+
+const PARENT: MultiAgentRun = {
+  id: "parent-1",
+  pr_id: "pr-1",
+  ran_at: "2026-08-30T10:00:00.000Z",
+  agent_count: 2,
+  total_duration_ms: 1800,
+  total_cost_usd: 0.3,
+  columns: [
+    {
+      run_id: "run-1",
+      agent_id: "sec",
+      agent_name: "Security Reviewer",
+      provider: "openai",
+      model: "gpt-4.1",
+      status: "done",
+      verdict: null,
+      score: 80,
+      summary: null,
+      duration_ms: 1000,
+      cost_usd: 0.2,
+      findings: [],
+    },
+    {
+      run_id: "run-nested",
+      agent_id: "perf",
+      agent_name: "Perf",
+      provider: "openai",
+      model: "gpt-4.1",
+      status: "done",
+      verdict: null,
+      score: 70,
+      summary: null,
+      duration_ms: 800,
+      cost_usd: 0.1,
+      findings: [],
+    },
+  ],
+  conflicts: [],
+};
+
+describe("RunHistory — multi-agent parent card", () => {
+  it("nests child runs under an expandable parent and links to the results page", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <RunHistory
+          runs={[run({ run_id: "run-1" }), run({ run_id: "run-standalone", agent_name: "Solo" })]}
+          parents={[PARENT]}
+          parentHref={(id) => `/repos/r1/multi-agent/pr-1?run=${id}`}
+          onOpenTrace={() => {}}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByTestId("ma-parent-parent-1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open run" })).toHaveAttribute(
+      "href",
+      "/repos/r1/multi-agent/pr-1?run=parent-1",
+    );
+    expect(screen.getByText("Perf")).toBeInTheDocument();
+    expect(screen.getByText("Solo")).toBeInTheDocument();
+    expect(screen.getAllByText("Security Reviewer")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Multi-agent review/i }));
+    expect(screen.queryByTestId("ma-parent-body-parent-1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Multi-agent review/i }));
+    expect(screen.getByTestId("ma-parent-body-parent-1")).toBeInTheDocument();
   });
 });

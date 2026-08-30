@@ -85,6 +85,12 @@ export const MultiAgentRun = z.object({
 });
 export type MultiAgentRun = z.infer<typeof MultiAgentRun>;
 
+/** Body of POST /pulls/:id/multi-agent-run. Do not reuse RunRequest. */
+export const MultiAgentStartRequest = z.object({
+  agent_ids: z.array(z.string().min(1)).min(1),
+});
+export type MultiAgentStartRequest = z.infer<typeof MultiAgentStartRequest>;
+
 // ---------------------------------------------------------------------------
 // Per-agent Stats (GET /agents/:id/stats)
 // ---------------------------------------------------------------------------

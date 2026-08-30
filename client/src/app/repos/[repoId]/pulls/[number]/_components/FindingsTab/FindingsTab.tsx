@@ -8,8 +8,10 @@ import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
+import { useMultiAgentRunsForPull } from "@/lib/hooks/multi-agent";
 
 interface FindingsTabProps {
+  repoId: string;
   prId: string | null;
   liveRunIds: string[];
   reviewRunning: boolean;
@@ -31,6 +33,7 @@ interface FindingsTabProps {
 }
 
 export function FindingsTab({
+  repoId,
   prId,
   liveRunIds,
   reviewRunning,
@@ -76,6 +79,8 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+  const { data: parentEnvelope } = useMultiAgentRunsForPull(prId);
+  const parents = parentEnvelope?.runs ?? [];
 
   // Files changed → finding deep-link: open the owning run accordion + scroll
   // to `[data-finding-id]` once, then clear `?finding=` (one-shot).
@@ -186,7 +191,7 @@ export function FindingsTab({
         </div>
       )}
 
-      {((prRuns && prRuns.length > 0) || prCommits.length > 0) && (
+      {((prRuns && prRuns.length > 0) || prCommits.length > 0 || parents.length > 0) && (
         <div style={s.timelineSection}>
           <SectionLabel
             icon="Activity"
@@ -198,6 +203,10 @@ export function FindingsTab({
             runs={prRuns ?? []}
             commits={prCommits}
             reviews={runs}
+            parents={parents}
+            parentHref={
+              prId ? (parentId) => `/repos/${repoId}/multi-agent/${prId}?run=${parentId}` : undefined
+            }
             repoFullName={repoFullName}
             headSha={headSha}
             onOpenTrace={handleOpenTrace}

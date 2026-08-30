@@ -1,0 +1,55 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  list: { display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  toolbar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  } satisfies CSSProperties,
+  toolbarLabel: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  linkBtn: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+    color: "var(--accent-text)",
+    fontSize: 12,
+    fontWeight: 600,
+    fontFamily: "inherit",
+  } satisfies CSSProperties,
+  card: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: "12px 14px",
+    borderRadius: 9,
+    cursor: "pointer",
+    width: "100%",
+    textAlign: "left" as const,
+    transition: "border-color .12s, background .12s",
+  } satisfies CSSProperties,
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  meta: { minWidth: 0, flex: 1 } satisfies CSSProperties,
+  name: { fontSize: 13.5, fontWeight: 600 } satisfies CSSProperties,
+  desc: {
+    fontSize: 11.5,
+    color: "var(--text-muted)",
+    marginTop: 3,
+    lineHeight: 1.45,
+  } satisfies CSSProperties,
+  estimate: {
+    fontSize: 10.5,
+    color: "var(--text-muted)",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+};
