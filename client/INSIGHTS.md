@@ -274,6 +274,16 @@ entry short (what happened, what to do instead).
 
 **Action:** When polling eval set-run history, also invalidate the cases/dashboard queries on each in-flight tick and once more when status leaves `queued`/`running`. Do not invalidate `eval-history` from that effect (that would loop).
 
+## 2026-08-30 — Pattern
+
+**Insight:** `apiFetch` always `res.json()` on success. Zip/file downloads need a sibling (`apiDownload`) that returns `res.blob()` and still maps the same `{ error: { code, message } }` envelope on failure.
+
+**Why it matters:** Reusing `api.post` for `action=files` throws on a valid `application/zip` body. The wizard then looks like a failed install even though the server returned 200.
+
+**Evidence:** `client/src/lib/api.ts` (`apiFetch` JSON parse vs `apiDownload` blob); `client/src/lib/hooks/ci.ts` `useCiExportZip` calls `apiDownload`.
+
+**Action:** Never point a TanStack mutation at `api.post` for a binary route. Keep error parsing aligned with `ApiError` so `missing_github_token` / `invalid_manifest` still surface.
+
 
 
 

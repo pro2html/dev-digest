@@ -54,4 +54,10 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Save agent")).toBeInTheDocument();
   });
+
+  it("keeps the Config-tab CI-gate control alongside the CI tab (AC-07)", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
+    expect(screen.getByText("CI")).toBeInTheDocument();
+    expect(screen.getByText("CI gate")).toBeInTheDocument();
+  });
 });
