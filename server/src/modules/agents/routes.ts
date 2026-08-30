@@ -48,7 +48,8 @@ const CreateAgentBody = z.object({
   strategy: ReviewStrategy.optional(),
   ci_fail_on: CiFailOn.optional(),
   repo_intel: z.boolean().optional(),
-  enabled: z.boolean().optional(),
+  // Lab02 breaking rename: was `enabled`.
+  is_enabled: z.boolean().optional(),
 });
 
 const UpdateAgentBody = z.object({
@@ -61,7 +62,8 @@ const UpdateAgentBody = z.object({
   strategy: ReviewStrategy.optional(),
   ci_fail_on: CiFailOn.optional(),
   repo_intel: z.boolean().optional(),
-  enabled: z.boolean().optional(),
+  // Lab02 breaking rename: was `enabled`.
+  is_enabled: z.boolean().optional(),
 });
 
 /**
@@ -138,11 +140,12 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
         ...(body.strategy !== undefined ? { strategy: body.strategy } : {}),
         ...(body.ci_fail_on !== undefined ? { ci_fail_on: body.ci_fail_on } : {}),
         ...(body.repo_intel !== undefined ? { repo_intel: body.repo_intel } : {}),
-        ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+        ...(body.is_enabled !== undefined ? { enabled: body.is_enabled } : {}),
       },
       userId,
     );
-    reply.status(201);
+    // Lab02 breaking: was 201 Created — clients that assert 201 will fail.
+    reply.status(200);
     return agent;
   });
 
@@ -151,7 +154,11 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams, body: UpdateAgentBody } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
-      const agent = await service.update(workspaceId, req.params.id, req.body);
+      const { is_enabled, ...rest } = req.body;
+      const agent = await service.update(workspaceId, req.params.id, {
+        ...rest,
+        ...(is_enabled !== undefined ? { enabled: is_enabled } : {}),
+      });
       if (!agent) throw new NotFoundError('Agent not found');
       return agent;
     },

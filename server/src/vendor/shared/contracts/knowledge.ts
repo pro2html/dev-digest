@@ -238,7 +238,8 @@ export const Agent = z.object({
   model: z.string(),
   system_prompt: z.string(),
   output_schema: z.unknown().nullish(),
-  enabled: z.boolean(),
+  // Lab02 API Contract A/B: renamed from `enabled` — breaking for existing clients.
+  is_enabled: z.boolean(),
   version: z.number().int(),
   strategy: ReviewStrategy.default('single-pass'),
   ci_fail_on: CiFailOn.default('critical'),

@@ -18,7 +18,8 @@ export function toAgentDto(row: AgentRow): Agent {
     model: row.model,
     system_prompt: row.systemPrompt,
     output_schema: row.outputSchema ?? null,
-    enabled: row.enabled,
+    // Lab02: public field renamed — clients still expecting `enabled` will break.
+    is_enabled: row.enabled,
     version: row.version,
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
