@@ -3,9 +3,11 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit, ReviewRecord } from "@devdigest/shared";
+import type { RunSummary, PrCommit, ReviewRecord, MultiAgentRun } from "@devdigest/shared";
 import { formatCost } from "@/lib/format-cost";
 import { FindingsIndicator } from "@/components/FindingsIndicator";
+import { childRunIdSet } from "./childRunIds";
+import { MultiAgentRunCard } from "./MultiAgentRunCard";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -77,6 +79,7 @@ const commitRowStyle: React.CSSProperties = {
 
 type TimelineItem =
   | { kind: "run"; ts: number; run: RunSummary }
+  | { kind: "parent"; ts: number; parent: MultiAgentRun }
   | { kind: "commit"; ts: number; commit: PrCommit };
 
 /** Epoch ms for sorting; unparseable / missing timestamps sort last. */
@@ -90,6 +93,8 @@ export function RunHistory({
   runs,
   commits = [],
   reviews = [],
+  parents = [],
+  parentHref,
   repoFullName,
   headSha,
   onOpenTrace,
@@ -100,6 +105,10 @@ export function RunHistory({
   commits?: PrCommit[];
   /** Reviews (with findings), used to populate each run's findings hover-card. */
   reviews?: ReviewRecord[];
+  /** Parent multi-agent runs for this PR — grouped cards, not loose child rows. */
+  parents?: MultiAgentRun[];
+  /** Build the results-page URL for a parent id. */
+  parentHref?: (parentId: string) => string;
   /** owner/repo + head sha — lets each run's findings hover-card deep-link
    *  file:line to GitHub (same helper as FindingCard). */
   repoFullName?: string | null;
@@ -111,7 +120,7 @@ export function RunHistory({
   onDelete?: (runId: string) => void;
 }) {
   const t = useTranslations("prReview");
-  if (runs.length === 0 && commits.length === 0) return null;
+  if (runs.length === 0 && commits.length === 0 && parents.length === 0) return null;
 
   // Per-run findings, keyed by run_id — the counts on RunSummary are
   // denormalized (fast, always present); this preview is looked up from the
@@ -122,8 +131,12 @@ export function RunHistory({
     if (review.run_id) findingsByRunId.set(review.run_id, review.findings);
   }
 
+  const nested = childRunIdSet(parents);
+  const standalone = runs.filter((run) => !nested.has(run.run_id));
+  const newestParentId = parents[0]?.id;
   const items: TimelineItem[] = [
-    ...runs.map((run) => ({ kind: "run" as const, ts: tsOf(run.ran_at), run })),
+    ...parents.map((parent) => ({ kind: "parent" as const, ts: tsOf(parent.ran_at), parent })),
+    ...standalone.map((run) => ({ kind: "run" as const, ts: tsOf(run.ran_at), run })),
     ...commits.map((commit) => ({
       kind: "commit" as const,
       ts: tsOf(commit.committed_at),
@@ -134,6 +147,18 @@ export function RunHistory({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {items.map((item) => {
+        if (item.kind === "parent") {
+          return (
+            <MultiAgentRunCard
+              key={`parent:${item.parent.id}`}
+              parent={item.parent}
+              href={parentHref?.(item.parent.id) ?? "#"}
+              defaultOpen={item.parent.id === newestParentId}
+              onGoToReview={onGoToReview}
+            />
+          );
+        }
+
         if (item.kind === "commit") {
           const c = item.commit;
           return (

@@ -58,3 +58,29 @@ Vs previous ledger entry (same SPEC-01 spec-creator, ~15651 parent-only): simila
    **Evidence:** `summarize-transcript.mjs` `launches[0].promptChars=3206`, `dumpSuspect=true`, `resumeCount=0`, `parentTakeover=false`; `duplicateReads` = spec + `implementation-planner.md` + `docs/plans/README.md`. Artifact-size table in `.claude/agents/README.md` has spec-creator→planner and planner→implementer rows, but no parent→planner prompt cap.
    **Action:** `.claude/agents/README.md` § Artifact size limits — add `parent → implementation-planner`: spec path + Execution mode + `docs/plans/<slug>.md` only; do not restate the agent’s Before you plan / format checklist (child Reads `.claude/agents/implementation-planner.md`).
 
+## 2026-08-30 — SPEC-06 Multi-Agent Review (sdd-implement, constrained)
+
+**Session:** `1c51b395-c48c-40fd-a779-8cfe9ae17633`
+**Agents:** 5 launches (types: implementer, architecture-reviewer ×3, plan-verifier)
+**Cost (est.):** ~24244 tokens (parent ~9451 + children ~14793)
+**Order:** implementer → architecture-reviewer (fail) → architecture-reviewer (fail) → architecture-reviewer → plan-verifier
+
+Vs previous ledger entry (SPEC-01 planner, ~16204, 1 launch): ~1.5× tokens; parent share ~39% (takeover) vs ~24% on that planner run.
+
+### Insights
+
+1. **Insight:** The single implementer Task was interrupted after ~37 min. The child jsonl only has the first 3 Reads (~430 tokens) and no Implementation Report, but Phases 1–6 were already on disk. The parent did not `resume` that `subagentId`; it audited the tree, fixed `service.ts`, ran implementer-owned typecheck/vitest, and later wrote `server/INSIGHTS.md`.
+   **Why it matters:** `sdd-implement` only defines implementer outcomes as `blocked` / `partial` / `done`. There is no interrupt path. The plan’s open question already allowed continuing the **same** implementer — the parent instead re-read the whole Changed-paths set (`duplicateReads` includes plan, spec, and almost every new module file) and took over writes (`parentTakeover` on `service.ts` + `INSIGHTS.md`).
+   **Evidence:** `summarize-transcript.mjs` `launches[0].subagentId=c32b0e76-…`, `tokenEstimate=430`, `mutatePaths=[]`, `resumeCount=0`, `parentTakeover=true`, `parentWritesAfterTask` = `multi-agent/service.ts` + `server/INSIGHTS.md`.
+   **Action:** `.claude/skills/sdd-implement/SKILL.md` §3 implementer — if the Task is interrupted or returns without a report while files exist, `resume` the same `subagentId` (verification + Implementation Report). Do not start a parent completeness Read of the allowlist.
+
+2. **Insight:** `architecture-reviewer.md` (and `plan-verifier.md`) pin `model: sonnet`. Two Task launches failed immediately with “Other Models usage limit”; `model: inherit` still failed (frontmatter wins). The third launch with explicit `cursor-grok-4.6-high-fast` ran (~6044 tokens, PASS_WITH_WARNINGS). Two unmatched child jsonls are 36-token error stubs.
+   **Why it matters:** Constrained mode already skipped test-writer; the retry tax was three identical 801-char prompts and a matching bug (successful grok transcript attributed to launch[1]). Reviewers cannot start until the parent guesses an override.
+   **Evidence:** `launches[1–3]` same `promptPrefix`, `launches[2].model=inherit` + `subagentId=null`; unmatched `6819bf90-…` / `fb610a8a-…`; agent frontmatter `model: sonnet` in `.claude/agents/architecture-reviewer.md` and `plan-verifier.md`.
+   **Action:** `.claude/agents/architecture-reviewer.md` + `plan-verifier.md` — default `model: grok` (same as implementer), or document that the parent must pass an explicit grok/fast slug when Other Models is exhausted; `inherit` does not override YAML `model: sonnet`.
+
+3. **Insight:** The plan’s Execution mode was `constrained-multi-agent`, which is not in the sdd-implement table (only `multi-agent` | `single-agent`). The parent followed the plan’s 3-step spawn list correctly (skip test-writer / pr-self-review / doc-writer).
+   **Why it matters:** The skill says “do not default silently — ask if unset” but does not name this third mode. A later orchestrator may spawn the full chain (or refuse) and ignore the plan’s token cap.
+   **Evidence:** `docs/plans/multi-agent-review.md` Execution mode `constrained-multi-agent`; `.claude/skills/sdd-implement/SKILL.md` Execution mode table has two rows only; this session `parallelGroups=[]`, no test-writer launch.
+   **Action:** `.claude/skills/sdd-implement/SKILL.md` Execution mode table — add `constrained-multi-agent`: honor the plan’s spawn list and skips; do not expand to the default full chain.
+

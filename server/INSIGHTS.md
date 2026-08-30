@@ -284,6 +284,26 @@ entry short (what happened, what to do instead).
 
 **Action:** Always run GitHub patches through `wrapFilePatch` before `parseUnifiedDiff` — on persist **and** at execute (so old cases still score). Do not treat an in-hunk `+++ added` line as a file header; only the first line of the patch decides “already headed”.
 
+## 2026-08-30 — Decision
+
+**Insight:** Multi-agent parent attribution is a `uuid[]` on `multi_agent_runs.child_run_ids`, not a `multi_agent_run_id` FK on `agent_runs`. Children are created by the existing `ReviewService.runReview` / `createAgentRun` path; the parent only stores the returned ids.
+
+**Why it matters:** Adding an FK on `agent_runs` would force a change to the hot create path and risk making `POST /pulls/:id/review` write parent rows (AC-13 forbids that).
+
+**Evidence:** `server/src/db/schema/runs.ts:57-61` (`childRunIds` uuid array, comment says not an FK on `agent_runs`); `server/src/modules/multi-agent/service.ts:39-44` (`runReview` then `setChildRunIds`); `server/src/modules/multi-agent/helpers.ts:38-40` (`pickChildRuns` keeps only stored ids).
+
+**Action:** Keep grouping on the parent row. Do not add `multi_agent_run_id` to `agent_runs` or teach `createAgentRun` about parents.
+
+## 2026-08-30 — Decision
+
+**Insight:** The multi-agent GET envelope is a **local** Zod DTO (`pr_id`, `run | null`, `grouped_locations`). Shared `MultiAgentRun.conflicts` is only the AC-15 conflict subset; agreements live on `grouped_locations` so AC-17 can list every file+line group without putting them on the shared run type.
+
+**Why it matters:** A 404 when the pull exists but has no parent, or dropping `grouped_locations` from the Fastify response schema, either breaks empty-vs-unavailable or silently strips the Toggle-off list (Zod serialization).
+
+**Evidence:** `server/src/modules/multi-agent/dto.ts:8-13`; `server/src/modules/multi-agent/service.ts:58-60` (200 + `run: null`); `server/src/modules/multi-agent/helpers.ts:123` (`conflicts: grouped.conflicts`).
+
+**Action:** Keep the GET envelope local (same idea as `reviews/summary-dto.ts`). Do not add `grouped_locations` to `@devdigest/shared` unless a second package needs it. Always include every envelope field in the route `response` schema.
+
 
 
 
