@@ -127,6 +127,13 @@
       "when": 1787396182478,
       "tag": "0017_flippant_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788083304393,
+      "tag": "0018_tiny_devos",
+      "breakpoints": true
     }
   ]
 }

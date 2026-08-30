@@ -1,33 +1,21 @@
 {
   "runs": {
-    "emptyTitle": "No CI runs yet",
-    "emptyBody": "Once you export an agent to CI, every automated review shows up here.",
+    "emptyTitle": "No automated reviews yet",
+    "emptyBody": "Once a CI job ingests a result, every automated review shows up here.",
     "title": "CI Runs",
-    "subtitle": "Agent reviews executed inside CI · not local runs",
-    "autoRefresh": "auto-refresh on",
-    "refresh": "Refresh",
-    "refreshing": "Refreshing…",
-    "filters": {
-      "last7Days": "Last 7 days",
-      "allAgents": "All agents",
-      "allRepos": "All repos",
-      "allStatuses": "All statuses"
-    },
+    "subtitle": "Agent reviews executed in GitHub Actions · not local studio runs",
+    "loadError": "Could not load CI runs.",
     "table": {
-      "timestamp": "Timestamp",
+      "repository": "Repository",
       "pullRequest": "Pull request",
-      "source": "Source",
+      "agent": "Agent",
+      "verdict": "Verdict",
       "findings": "Findings",
       "cost": "Cost",
-      "status": "Status"
+      "duration": "Duration",
+      "job": "Job"
     },
-    "view": "View",
-    "status": {
-      "succeeded": "Succeeded",
-      "noFindings": "No findings",
-      "failed": "Failed",
-      "running": "Running"
-    }
+    "view": "View job"
   },
   "exportWizard": {
     "title": "Export to CI",
@@ -35,7 +23,7 @@
     "thisAgent": "this agent",
     "back": "Back",
     "continue": "Continue",
-    "install": "Install",
+    "install": "Open a PR with these files",
     "installing": "Installing…",
     "steps": {
       "target": "Target",
@@ -45,21 +33,17 @@
     },
     "targets": {
       "gha": "GitHub Actions",
-      "circle": "CircleCI",
-      "jenkins": "Jenkins",
-      "cli": "Generic CLI",
-      "ghaDesc": "Runs on pull_request events",
-      "circleDesc": "config.yml job",
-      "jenkinsDesc": "Pipeline stage",
-      "cliDesc": "devdigest review --pr"
+      "ghaDesc": "Runs on pull_request events"
     },
     "recommended": "recommended",
     "repoLabel": "Target repository",
     "repoHint": "owner/name — the repo to add the workflow to",
     "repoPlaceholder": "acme/payments-api",
+    "invalidRepo": "A valid repository (owner/name) is required.",
     "filesToCreate": "FILES TO CREATE",
     "generating": "Generating…",
     "editable": "editable",
+    "previewFailed": "Could not generate the CI bundle.",
     "triggerLabel": "Trigger",
     "postResultsLabel": "Post results as",
     "postAs": {
@@ -68,37 +52,46 @@
       "none": "None (exit code only)"
     },
     "blockMergeTitle": "Block merge on findings",
-    "blockMergeDesc": "Requires a GitHub App — not available with PAT in local mode",
+    "blockMergeDesc": "Set Fail CI on on the CI tab so the job exits non-zero, then add a required status check in GitHub branch protection. No GitHub App is required.",
     "installCardTitle": "Open a PR with these files",
     "installCardBody": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the {count} generated files.",
     "ownerRepo": "owner/repo",
-    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs."
+    "openPr": "View pull request",
+    "zipTitle": "Copy files as a zip",
+    "zipAction": "Download zip",
+    "zipFailed": "Could not download the zip.",
+    "secretNote": "Add {key} and {ingest} as GitHub Actions secrets before the workflow can review and ingest. Actions supplies GITHUB_TOKEN for posting reviews or comments.",
+    "ingestTokenOnce": "Workspace ingest token (copy now — shown once)",
+    "ingestExists": "Use the existing Actions secret named {name}.",
+    "missingToken": "Add a GitHub token in Settings before opening the install PR.",
+    "githubFailed": "GitHub could not create or update the install PR.",
+    "invalidManifest": "The generated agent manifest is invalid. Install is blocked."
   },
   "ciTab": {
-    "heading": "Continuous Integration",
+    "heading": "CI deployment",
     "subtitle": "Run this agent automatically on pull requests in a target repo.",
-    "exportToCi": "Export to CI",
-    "publish": "Publish to CI",
-    "update": "Update CI",
-    "noRepo": "Connect a repository first",
-    "empty": "Not deployed to CI yet. Use “Publish to CI” to open a PR that adds the workflow + agent config.",
-    "installed": "installed {date}"
-  },
-  "publishDialog": {
-    "title": "Publish to CI",
-    "subtitle": "Run {agentName} on every pull request in {repo}",
-    "intro": "Opens a pull request in {repo} adding a GitHub Actions workflow + this agent's config under .devdigest/. On every PR the agent reviews the diff.",
-    "filesLabel": "FILES",
-    "generating": "Generating…",
-    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs. GITHUB_TOKEN is provided automatically.",
-    "cancel": "Cancel",
-    "publish": "Publish",
-    "publishing": "Publishing…",
-    "republish": "Re-publish (update)",
-    "doneTitle": "Published",
-    "doneBody": "Opened/updated a pull request in {repo} with the workflow + agent config.",
-    "openPr": "View pull request",
-    "close": "Close"
+    "activeIn": "Active in {count} repos",
+    "addToCi": "+ Add to CI",
+    "addRepository": "+ Add repository",
+    "updateConfig": "Update CI config",
+    "failOnLabel": "Fail CI on",
+    "failOn": {
+      "critical": "Critical",
+      "warning": "Warning+",
+      "never": "Never"
+    },
+    "failOnAnyHint": "Pick Critical, Warning+, or Never to overwrite the stored “any” gate.",
+    "failOnStaleHint": "Changing Fail CI on here does not update already-exported files until you use Update CI config.",
+    "empty": "Not deployed to CI yet. Use “+ Add to CI” to generate files and open an install PR. A zip download does not create an installation.",
+    "ghaLabel": "GitHub Actions",
+    "statusUnknown": "no runs yet",
+    "status": {
+      "succeeded": "succeeded",
+      "failed": "failed",
+      "no_findings": "no findings",
+      "running": "running"
+    },
+    "history": "CI history"
   },
   "page": {
     "crumb": "CI Runs"

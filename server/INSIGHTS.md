@@ -284,6 +284,36 @@ entry short (what happened, what to do instead).
 
 **Action:** Always run GitHub patches through `wrapFilePatch` before `parseUnifiedDiff` — on persist **and** at execute (so old cases still score). Do not treat an in-hunk `+++ added` line as a file header; only the first line of the patch decides “already headed”.
 
+## 2026-08-30 — Decision
+
+**Insight:** `POST /agents/:id/export-ci` with `action=files` must omit Fastify `response: { 200: … }` Zod schema and `reply.send(Buffer)` as `application/zip`. A JSON response schema would serialize (or reject) the zip.
+
+**Why it matters:** Same trap as the 2026-08-14 catalog-envelope insight — Fastify+zod strips or re-encodes anything that is not the declared object. A zip download is not a `CiExport` object (`installation` is required there anyway).
+
+**Evidence:** `server/src/modules/ci/routes.ts:52-64` (body schema only; zip branch sets content-type and sends a Buffer); shared `CiExport` requires `installation`.
+
+**Action:** Binary downloads skip the Zod response serializer. Parse/return JSON envelopes (`CiOpenPrResponse.parse`) only on the open-PR branch.
+
+## 2026-08-30 — Context
+
+**Insight:** `UNIQUE (workspace_id, ci_job_url)` on `agent_runs` is enough for duplicate CI ingest without a partial index: local rows leave `ci_job_url` NULL, and Postgres UNIQUE treats NULLs as distinct.
+
+**Why it matters:** A naive unique on `ci_job_url` alone, or a NOT NULL job URL, would block local studio runs or force dummy URLs. Drizzle `uniqueIndex().where(...)` is optional here.
+
+**Evidence:** `server/src/db/schema/runs.ts:47-49`; `server/src/db/migrations/0018_tiny_devos.sql` creates `agent_runs_ws_job_url_uq`.
+
+**Action:** Keep CI job identity nullable; upsert/no-op ingest by `(workspace_id, ci_job_url)` only when the URL is present.
+
+## 2026-08-30 — Decision
+
+**Insight:** The Actions runner must import the server `AgentManifest` Zod object (`eval-ci.ts`) and reviewer-core `reviewPullRequest` / `gateTriggered`, then esbuild that adapter into a checked-in `assets/runner.mjs` at asset-build time. A YAML-to-object helper is only deserialization; a second `parseAgentManifest` with local `PROVIDERS`/`FAIL_ON` lists is a different schema and fails AC-37 even if the field names match. `esbuild` is not a server dependency — `prebundle.mjs` loads it via `createRequire(vite/package.json)`. Do not esbuild inside `ci-preview`.
+
+**Why it matters:** A hand-rolled validator + `llmChat` looks like “the same rules” in a source grep but drifts from studio `AgentManifest.parse` and from `FAIL_ON_MIN_RANK` in reviewer-core (the runner copy used CRITICAL=4 vs the engine’s 3). Preview-time bundling would also make every wizard Continue pay for a 1MB+ openai+zod graph.
+
+**Evidence:** `server/src/modules/ci/runner/manifest.ts` (`AgentManifest.safeParse`); `runner/main.ts` (`reviewPullRequest` + `gateTriggered`); `runner/prebundle.mjs`; generated `assets/runner.mjs` still contains `var AgentManifest = …z.object({…})` and `async function reviewPullRequest`. Architecture A1 / plan-verifier AC-37 FAIL on the previous `parseAgentManifest` + `llmChat` asset.
+
+**Action:** Edit `modules/ci/runner/*.ts` and rebuild with `node src/modules/ci/runner/prebundle.mjs`. Do not reintroduce enum lists or a chat/parseFindings loop in `assets/runner.mjs`. Studio continues to `AgentManifest.parse` in `buildManifest` before Install.
+
 
 
 

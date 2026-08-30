@@ -16,4 +16,9 @@ describe("activeKeyFor (AC-28)", () => {
     expect(activeKeyFor("/eval")).toBe("eval");
     expect(activeKeyFor("/eval/abc")).toBe("eval");
   });
+
+  it("maps /ci-runs to the ci-runs nav key (AC-46)", () => {
+    expect(activeKeyFor("/ci-runs")).toBe("ci-runs");
+    expect(activeKeyFor("/ci-runs/")).toBe("ci-runs");
+  });
 });
