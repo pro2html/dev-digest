@@ -1,0 +1,28 @@
+name: DevDigest review
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEVDIGEST_INGEST_TOKEN: ${{ secrets.DEVDIGEST_INGEST_TOKEN }}
+          DEVDIGEST_INGEST_URL: ${{ vars.DEVDIGEST_INGEST_URL }}
+          DEVDIGEST_POST_AS: github_review
+        run: node .devdigest/runner.mjs review --agent security-reviewer
